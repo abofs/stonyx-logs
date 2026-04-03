@@ -1,5 +1,5 @@
 import Qunit from 'qunit';
-import Chronicle from '../source/index.js';
+import Chronicle from '../src/index.js';
 import { fileURLToPath } from 'url';
 import projectPath from 'path';
 

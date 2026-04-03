@@ -3,7 +3,7 @@
  * instantiate chronicle with additional logs, and advanced color setting
  */
 
-import Chronicle from '../source/index.js';
+import Chronicle from '../src/index.js';
 
 const chronicle = new Chronicle({ additionalLogs: { question: 'green' }});
 

@@ -1,6 +1,6 @@
 import Qunit from 'qunit';
 import { promises as fsp } from 'fs';
-import Chronicle from '../source/index.js';
+import Chronicle from '../src/index.js';
 
 const { module, test } = Qunit;
 

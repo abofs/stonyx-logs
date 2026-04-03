@@ -154,7 +154,7 @@ export default class Chronicle {
   // method to conditionally sanitize user configuration input
   sanitizePath(path) {
     const moduleDir = projectPath.dirname(fileURLToPath(import.meta.url));
-    const delim = moduleDir.includes('node_modules') ? 'node_modules' : 'source';
+    const delim = moduleDir.includes('node_modules') ? 'node_modules' : 'src';
     const splitDir = moduleDir.split(delim);
 
     if (splitDir.length < 2) throw ('Failed to locate your project\'s root directory.');

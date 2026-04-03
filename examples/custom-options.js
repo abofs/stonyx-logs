@@ -3,7 +3,7 @@
  * instantiate chronicle with custom options
  */
 
-import Chronicle from '../source/index.js';
+import Chronicle from '../src/index.js';
 
 const chronicle = new Chronicle({
   logToFileByDefault: true,

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Simplified logging for node applications",
   "type": "module",
-  "main": "source/index.js",
+  "main": "src/index.js",
   "scripts": {
     "test": "qunit",
     "lint": "eslint . --fix"

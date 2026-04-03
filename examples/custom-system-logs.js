@@ -3,7 +3,7 @@
  * instantiate chronicle with custom system logs
  */
 
-import Chronicle from '../source/index.js';
+import Chronicle from '../src/index.js';
 
 const chronicle = new Chronicle({
   systemLogs: {

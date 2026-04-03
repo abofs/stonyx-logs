@@ -3,7 +3,7 @@
  * Instantiate chronicle with default settings
  */
 
-import Chronicle from '../source/index.js';
+import Chronicle from '../src/index.js';
 
 const chronicle = new Chronicle();
 
