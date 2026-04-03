@@ -4,13 +4,21 @@
   "description": "Simplified logging for node applications",
   "type": "module",
   "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./color": "./src/color.js"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "test": "qunit 'test/unit/**/*-test.js'",
     "lint": "eslint . --fix"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abofs/chronicle.git"
+    "url": "git+https://github.com/abofs/stonyx-logs.git"
   },
   "keywords": [
     "log",
@@ -28,9 +36,9 @@
   "author": "Stone Costa",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/abofs/chronicle/issues"
+    "url": "https://github.com/abofs/stonyx-logs/issues"
   },
-  "homepage": "https://github.com/abofs/chronicle#readme",
+  "homepage": "https://github.com/abofs/stonyx-logs#readme",
   "dependencies": {
     "chalk": "^5.3.0"
   },
