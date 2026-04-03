@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "test": "qunit",
+    "test": "qunit 'test/unit/**/*-test.js'",
     "lint": "eslint . --fix"
   },
   "repository": {
