@@ -1,3 +1,7 @@
+[![CI](https://github.com/abofs/stonyx-logs/actions/workflows/ci.yml/badge.svg)](https://github.com/abofs/stonyx-logs/actions/workflows/ci.yml)
+[![npm version](https://img.shields.io/npm/v/@stonyx/logs.svg)](https://www.npmjs.com/package/@stonyx/logs)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 <h1 align="center">
 	<br>
 	<br>
