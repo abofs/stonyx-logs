@@ -8,6 +8,10 @@
     ".": "./src/index.js",
     "./color": "./src/color.js"
   },
+  "files": [
+    "src",
+    "README.md"
+  ],
   "publishConfig": {
     "access": "public",
     "provenance": true

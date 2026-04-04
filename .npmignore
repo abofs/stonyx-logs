@@ -1,14 +1,10 @@
-# internals
-/media/
-/examples/
-/test/
-
-# dependencies
-/node_modules/
-
-#logs
-*logs/*
-
-# ide
-.vscode/*
-*.vsix
+.git
+.env
+.npmrc
+.claude/
+.github/
+test/
+scripts/
+*.log
+.nvmrc
+.gitignore
