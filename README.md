@@ -1,7 +1,7 @@
 <h1 align="center">
 	<br>
 	<br>
-	<img width="560" src="https://github.com/abofs/chronicle/raw/master/media/chronicle-logo.svg" alt="Chronicle">
+	<img width="560" src="https://github.com/abofs/stonyx-logs/raw/master/media/logo.png" alt="Chronicle">
 	<br>
 	<br>
 	<br>
