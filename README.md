@@ -31,10 +31,10 @@
 
 ---
 
-**Chronicle** is built on top of all the great work done by "Sindre Sorhus" and other collaborators of the [chalk](https://www.npmjs.com/package/chalk) project.
-This project is not directly associated with chalk other than chalk being a core dependency of **Chronicle**.
+**Log** is built on top of all the great work done by "Sindre Sorhus" and other collaborators of the [chalk](https://www.npmjs.com/package/chalk) project.
+This project is not directly associated with chalk other than chalk being a core dependency of **Log**.
 
-**IMPORTANT**: Please note that although **Chronicle** can be configured to any color through chalk, your output is subject to your terminal's color limitations.
+**IMPORTANT**: Please note that although **Log** can be configured to any color through chalk, your output is subject to your terminal's color limitations.
 
 ## Highlights
 
@@ -45,27 +45,27 @@ This project is not directly associated with chalk other than chalk being a core
 ## Install
 
 ```sh
-npm install node-chronicle
+npm install @stonyx/logs
 ```
 
 ## Usage
 
 ```js
-import Chronicle from 'node-chronicle';
+import Log from '@stonyx/logs';
 
-const chronicle = new Chronicle();
+const log = new Log();
 
-chronicle.info('Info: sample application has started');
-chronicle.warn('Warning: this is just a sample');
-chronicle.error('Error: no application logic detected', true); // logs to logs/error.log file
+log.info('Info: sample application has started');
+log.warn('Warning: this is just a sample');
+log.error('Error: no application logic detected', true); // logs to logs/error.log file
 ```
 
 Easily define your own logging mechanism and color-coding preference:
 
 ```js
-import Chronicle from 'node-chronicle';
+import Log from '@stonyx/logs';
 
-const chronicle = new Chronicle({
+const log = new Log({
   systemLogs: {
     blue: '#007cae', // indigo blue
     yellow: '#ae8f00', // bright orange
@@ -73,17 +73,17 @@ const chronicle = new Chronicle({
   },
 });
 
-chronicle.blue('Info: using custom method blue, sample application has started');
-chronicle.yellow('Warning: using custom method yellow, this is just a sample');
-chronicle.red('Error: using custom method red, no application logic detected', false);
+log.blue('Info: using custom method blue, sample application has started');
+log.yellow('Warning: using custom method yellow, this is just a sample');
+log.red('Error: using custom method red, no application logic detected', false);
 ```
 
 Customize logging options to best suit your project
 
 ```js
-import Chronicle from 'node-chronicle';
+import Log from '@stonyx/logs';
 
-const chronicle = new Chronicle({
+const log = new Log({
   logToFileByDefault: true,
   logTimestamp: true,
   path: 'custom-logs', // <project root>/custom-logs/*.log
@@ -91,7 +91,7 @@ const chronicle = new Chronicle({
   suffix: '\n=============================================================== \n',
 });
 
-chronicle.info('Info: sample application has started');
+log.info('Info: sample application has started');
 ```
 ![](https://github.com/abofs/stonyx-logs/raw/main/media/examples/custom-options.jpg)
 
@@ -99,15 +99,15 @@ chronicle.info('Info: sample application has started');
 Add additional log types extending the default options of "info", "warn", "error" and "debug"
 
 ```js
-import Chronicle from '../source/index.js';
+import Log from '@stonyx/logs';
 
-const chronicle = new Chronicle({ additionalLogs: { question: 'green' } });
+const log = new Log({ additionalLogs: { question: 'green' } });
 
 // create additional log with direct chalk configuration
-chronicle.defineType('query', chronicle.chalk().black.bgGreen);
+log.defineType('query', log.chalk().black.bgGreen);
 
-chronicle.question('What will a fully custom chalk color function look like?');
-await chronicle.query('This is what a custom chalk color setting looks like', true);
+log.question('What will a fully custom chalk color function look like?');
+await log.query('This is what a custom chalk color setting looks like', true);
 ```
 ![](https://github.com/abofs/stonyx-logs/raw/main/media/examples/additional-logs.jpg)
 
@@ -115,7 +115,7 @@ await chronicle.query('This is what a custom chalk color setting looks like', tr
 
 ### Defining Logs & Colors
 
-By default, **Chronicle** is instantiated with the following options:
+By default, **Log** is instantiated with the following options:
 
 ```js
   additionalLogs: {},
@@ -126,10 +126,10 @@ By default, **Chronicle** is instantiated with the following options:
   },
 ```
 
-You can add to a new log/color setting by passing the `additionalLogs` option to the **Chronicle** constructor. Any setting that already exists in `systemLogs` will be replaced, otherwise they will be added.
+You can add to a new log/color setting by passing the `additionalLogs` option to the **Log** constructor. Any setting that already exists in `systemLogs` will be replaced, otherwise they will be added.
  
 ```js
-  const chronicle = new Chronicle({ additionalLogs: { info: 'green', custom: 'cyan' } });
+  const log = new Log({ additionalLogs: { info: 'green', custom: 'cyan' } });
 
   // output configuration:
   {
@@ -140,13 +140,13 @@ You can add to a new log/color setting by passing the `additionalLogs` option to
   }
 ```
 
-**Chronicle** will generate convenience methods for all keys provided, with the corresponding color settings. The example above would create the following convenience methods, for logging:
+**Log** will generate convenience methods for all keys provided, with the corresponding color settings. The example above would create the following convenience methods, for logging:
 
 ```js
-  chronicle.info() // green output
-  chronicle.warn() // yellow output
-  chronicle.error() // red output
-  chronicle.custom() // cyan output
+  log.info() // green output
+  log.warn() // yellow output
+  log.error() // red output
+  log.custom() // cyan output
 ```
 
 These methods can then be called in your application with [logging parameters](#logging-parameters).
@@ -157,7 +157,7 @@ Additionally, these methods return a promise when `logToFile` is true, allowing 
 
 ```js
 async method() {
-  await chronicle.error('error message', true);
+  await log.error('error message', true);
 
   // do something after logs/error.log (default) is created
 }
@@ -165,7 +165,7 @@ async method() {
 
 ### The Debug Method
 
-**Chronicle** allows for the `chronicle.debug()` method to be overridden by a color setting. However, by default we do not define a color for debug and debug is handled differently. For console logging, all **debug** does is output the following:
+**Log** allows for the `log.debug()` method to be overridden by a color setting. However, by default we do not define a color for debug and debug is handled differently. For console logging, all **debug** does is output the following:
 
 ```js
 // For logging to console:
@@ -175,12 +175,12 @@ console.dir(content);
 JSON.stringify(content, null, 2);
 ```
 
-We believe that when wanting to output complicated objects or debug **typescript** applications, there are better methods than utilizing this **Chronicle** package. But for anyone who's fully incorporated **Chronicle** into their project, this function offers some convenience.
+We believe that when wanting to output complicated objects or debug **typescript** applications, there are better methods than utilizing this **Log** package. But for anyone who's fully incorporated **Log** into their project, this function offers some convenience.
 
 ### Logging Parameters
 
 ```js
-chronicle.error('error message', true, false); // content, logToFile, overwrite
+log.error('error message', true, false); // content, logToFile, overwrite
 ```
 
 | Parameter | Type | Default | Description |
@@ -192,10 +192,10 @@ chronicle.error('error message', true, false); // content, logToFile, overwrite
 **logToFile** will log to *<project-root>/logs* unless [configured](#configuration) differently during instantiation. <br>
 ### Configuration
 
-When instantiating **Chronicle**, you can pass an object to customize your settings. Below is the default configuration:
+When instantiating **Log**, you can pass an object to customize your settings. Below is the default configuration:
 
 ```js
-const chronicle = new Chronicle({
+const log = new Log({
   logToFileByDefault: false,
   logTimestamp: false,
   path: 'logs/',
@@ -220,26 +220,26 @@ const chronicle = new Chronicle({
 | `suffix` | **String** | *''* | Suffix string to tack on to all log messages for all log types with the exception of *debug*. |
 | `filename` | **String** | *''* | Template for log file names with variable support. Defaults to `{type}.log` when empty. See [dynamic file names](#dynamic-file-names). |
 | `additionalLogs` | **Object** | | Key value pair object containing log type to color setting for logs that will be merged with `systemLogs` |
-| `systemLogs` | **Object** | | Key value pair object containing log type to color setting for main **Chronicle** logs available in application |
+| `systemLogs` | **Object** | | Key value pair object containing log type to color setting for main **Log** logs available in application |
 
 `additionalLogs` and `systemLogs` are explained with more detail in the [defining logs and colors](#defining-logs) section.
 
 ### Advanced Configuration
 
-You may want to do more than just pick a basic color for your output. **chalk** offers a variety of different options, and can be configured via `defineType()`. **Chronicle** exposes the chalk instance via `chalk()` so that you don't have to import **chalk** directly into your project. Here is an example of how you can use this method to fully customize your log color setting:
+You may want to do more than just pick a basic color for your output. **chalk** offers a variety of different options, and can be configured via `defineType()`. **Log** exposes the chalk instance via `chalk()` so that you don't have to import **chalk** directly into your project. Here is an example of how you can use this method to fully customize your log color setting:
 
 ```js
-const chronicle = new Chronicle();
+const log = new Log();
 
-chronicle.defineType('critical', chronicle.chalk().bold.red);
-chronicle.critical('This is a critical error');
+log.defineType('critical', log.chalk().bold.red);
+log.critical('This is a critical error');
 ```
 
 Additionally, any [configuration](#configuration) that can be set during instantiation, can also be applied exclusively to any given type by passing in a third **options** parameter.
 
 ```js
 // params: type, setting, options
-chronicle.definetype('notice', '#c0c0c0', {
+log.definetype('notice', '#c0c0c0', {
   prefix: '--------------------------------------------------------------- \n',
   suffix: '\n=============================================================== \n'
 });
@@ -254,20 +254,20 @@ chronicle.definetype('notice', '#c0c0c0', {
 
 
 ```js
-const chronicle = new Chronicle();
+const log = new Log();
 
-chronicle.defineType('info', chronicle.chalk().black.bgCyan);
-chronicle.defineType('critical', chronicle.chalk().bold.red);
-chronicle.defineType('dialog', 'magentaBright');
-chronicle.definetype('notice', '#c0c0c0', {
+log.defineType('info', log.chalk().black.bgCyan);
+log.defineType('critical', log.chalk().bold.red);
+log.defineType('dialog', 'magentaBright');
+log.definetype('notice', '#c0c0c0', {
   prefix: '--------------------------------------------------------------- \n',
   suffix: '\n=============================================================== \n'
 });
 
-chronicle.info('This pre-existing log now has a cyan background and black foreground');
-chronicle.critical('This new log is bold and red');
-chronicle.dialog('This new dialog is bright magenta');
-chronicle.notice('This new log is the hex "#c0c0c0" share of gray');
+log.info('This pre-existing log now has a cyan background and black foreground');
+log.critical('This new log is bold and red');
+log.dialog('This new dialog is bright magenta');
+log.notice('This new log is the hex "#c0c0c0" share of gray');
 ```
 
 `defineType()` can also be used as an alternative to populating the `additionalLogs` setting in the constructor, as if the setting doesn't already exist, it will then be created.
@@ -289,15 +289,15 @@ The `filename` option supports template variables that are resolved at write-tim
 
 ```js
 // Per-type filename via defineType
-chronicle.defineType('error', 'red', { filename: 'error-{date}.log' });
+log.defineType('error', 'red', { filename: 'error-{date}.log' });
 // writes to: logs/error-2026-04-04.log
 
 // Per-type filename with multiple variables
-chronicle.defineType('info', 'cyan', { filename: '{type}-{hostname}-{date}.log' });
+log.defineType('info', 'cyan', { filename: '{type}-{hostname}-{date}.log' });
 // writes to: logs/info-my-server-2026-04-04.log
 
 // Global filename template via constructor
-const chronicle = new Chronicle({ filename: '{type}-{date}.log' });
+const log = new Log({ filename: '{type}-{date}.log' });
 // all types write to: logs/<type>-2026-04-04.log
 ```
 
@@ -307,9 +307,9 @@ Path traversal characters (`..`, `/`, `\`) are automatically stripped from resol
 
 ## Origin
 
-As a team of developers who are constantly working on side projects, we often litter our codebase with TODOs to refactor convenience utils such as **chronicle** into classes of their own, or projects of their own. This usually turns into internal tech debt that never gets addressed. Furthermore, we also often find ourselves going the *copy -> paste -> modify* route of previously written useful logic, which saves us time in new projects, but not as much as it would if all we had to do was run an `npm install` instead. 
+As a team of developers who are constantly working on side projects, we often litter our codebase with TODOs to refactor convenience utils such as **@stonyx/logs** into classes of their own, or projects of their own. This usually turns into internal tech debt that never gets addressed. Furthermore, we also often find ourselves going the *copy -> paste -> modify* route of previously written useful logic, which saves us time in new projects, but not as much as it would if all we had to do was run an `npm install` instead. 
 
-With that in mind, we are proud to release **chronicle** as an open source package, in hopes others will find this just as useful as we do in their own projects.  
+With that in mind, we are proud to release **@stonyx/logs** as an open source package, in hopes others will find this just as useful as we do in their own projects.  
 
 ## Maintainers
 

@@ -20,4 +20,4 @@ Simplified logging for Node.js applications. Built on [chalk](https://www.npmjs.
 - Custom log type definitions via `defineType()`
 - Async file-write support with `await`
 
-> **Note:** The README currently references the upstream "Chronicle" branding. See [abofs/stonyx-logs#1](https://github.com/abofs/stonyx-logs/issues/1) for the alignment issue tracking that rename.
+> **Note:** The internal class is named `Log`. See [abofs/stonyx-logs#11](https://github.com/abofs/stonyx-logs/issues/11) for the rename tracking issue.
