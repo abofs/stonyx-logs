@@ -1,7 +1,7 @@
 <h1 align="center">
 	<br>
 	<br>
-	<img width="560" src="https://github.com/abofs/stonyx-logs/raw/master/media/logo.png" alt="Chronicle">
+	<img width="560" src="https://github.com/abofs/stonyx-logs/raw/main/media/logo.png" alt="Stonyx Logs">
 	<br>
 	<br>
 	<br>
@@ -9,7 +9,7 @@
 
 > Simplified logging for node applications
 
-![](https://github.com/abofs/chronicle/raw/master/media/screenshot.jpg)
+![](https://github.com/abofs/stonyx-logs/raw/main/media/screenshot.jpg)
 
 <br>
 
@@ -89,7 +89,7 @@ const chronicle = new Chronicle({
 
 chronicle.info('Info: sample application has started');
 ```
-![](https://github.com/abofs/chronicle/raw/master/media/examples/custom-options.jpg)
+![](https://github.com/abofs/stonyx-logs/raw/main/media/examples/custom-options.jpg)
 
 
 Add additional log types extending the default options of "info", "warn", "error" and "debug"
@@ -105,7 +105,7 @@ chronicle.defineType('query', chronicle.chalk().black.bgGreen);
 chronicle.question('What will a fully custom chalk color function look like?');
 await chronicle.query('This is what a custom chalk color setting looks like', true);
 ```
-![](https://github.com/abofs/chronicle/raw/master/media/examples/additional-logs.jpg)
+![](https://github.com/abofs/stonyx-logs/raw/main/media/examples/additional-logs.jpg)
 
 ## API
 
