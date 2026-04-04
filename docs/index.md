@@ -7,6 +7,11 @@ Simplified logging for Node.js applications. Built on [chalk](https://www.npmjs.
 - [README](../README.md) -- usage examples, API reference, and configuration options
 - [Release instructions](release.md)
 
+## Verification
+
+- **Run tests:** `pnpm test` (QUnit, tests in `test/`)
+- **Lint:** `pnpm lint` (ESLint with auto-fix)
+
 ## Overview
 
 @stonyx/logs provides:
