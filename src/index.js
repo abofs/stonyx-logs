@@ -24,7 +24,7 @@ const defaultOptions = {
 // used to sanitize defineType() options input
 const optionKeys = Object.keys(defaultOptions);
 
-export default class Chronicle {
+export default class Log {
   constructor(options = defaultOptions) {
     options = {
       ...defaultOptions,
@@ -48,7 +48,7 @@ export default class Chronicle {
     }
   }
 
-  // records setting and options for log type, and crates convenience method ie: chronicle.info()
+  // records setting and options for log type, and creates convenience method ie: log.info()
   defineType(type, setting, options = null) {
     this.color.setLogColor(type, setting);
 
@@ -61,7 +61,7 @@ export default class Chronicle {
     for (let option of Object.keys(options)) {
       if (!optionKeys.includes(option)) {
         throw `${option} is not a valid configuration object.`
-        + '\n For a list of available options, see https://github.com/abofs/chronicle#configuration';
+        + '\n For a list of available options, see https://github.com/abofs/stonyx-logs#configuration';
       }
 
       // sanitize path input

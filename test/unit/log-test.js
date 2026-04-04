@@ -1,10 +1,10 @@
 import QUnit from 'qunit';
 import sinon from 'sinon';
-import Chronicle from '../../src/index.js';
+import Log from '../../src/index.js';
 
 const { module, test } = QUnit;
 
-module('[Unit] Chronicle', function (hooks) {
+module('[Unit] Log', function (hooks) {
   let consoleLogStub;
   let consoleDirStub;
 
@@ -21,70 +21,70 @@ module('[Unit] Chronicle', function (hooks) {
 
   module('initialization', function () {
     test('creates instance with default options', function (assert) {
-      const chronicle = new Chronicle();
+      const log = new Log();
 
-      assert.ok(chronicle instanceof Chronicle, 'is a Chronicle instance');
-      assert.strictEqual(chronicle.options.logToFileByDefault, false, 'logToFileByDefault defaults to false');
-      assert.strictEqual(chronicle.options.logTimestamp, false, 'logTimestamp defaults to false');
-      assert.strictEqual(chronicle.options.prefix, '', 'prefix defaults to empty string');
-      assert.strictEqual(chronicle.options.suffix, '', 'suffix defaults to empty string');
+      assert.ok(log instanceof Log, 'is a Log instance');
+      assert.strictEqual(log.options.logToFileByDefault, false, 'logToFileByDefault defaults to false');
+      assert.strictEqual(log.options.logTimestamp, false, 'logTimestamp defaults to false');
+      assert.strictEqual(log.options.prefix, '', 'prefix defaults to empty string');
+      assert.strictEqual(log.options.suffix, '', 'suffix defaults to empty string');
     });
 
     test('creates default system log methods (info, warn, error)', function (assert) {
-      const chronicle = new Chronicle();
+      const log = new Log();
 
-      assert.strictEqual(typeof chronicle.info, 'function', 'info method exists');
-      assert.strictEqual(typeof chronicle.warn, 'function', 'warn method exists');
-      assert.strictEqual(typeof chronicle.error, 'function', 'error method exists');
+      assert.strictEqual(typeof log.info, 'function', 'info method exists');
+      assert.strictEqual(typeof log.warn, 'function', 'warn method exists');
+      assert.strictEqual(typeof log.error, 'function', 'error method exists');
     });
 
     test('creates debug method', function (assert) {
-      const chronicle = new Chronicle();
+      const log = new Log();
 
-      assert.strictEqual(typeof chronicle.debug, 'function', 'debug method exists');
+      assert.strictEqual(typeof log.debug, 'function', 'debug method exists');
     });
 
     test('merges user options with defaults', function (assert) {
-      const chronicle = new Chronicle({
+      const log = new Log({
         logTimestamp: true,
         prefix: '[APP] ',
       });
 
-      assert.strictEqual(chronicle.options.logTimestamp, true, 'logTimestamp overridden');
-      assert.strictEqual(chronicle.options.prefix, '[APP] ', 'prefix overridden');
-      assert.strictEqual(chronicle.options.logToFileByDefault, false, 'logToFileByDefault retains default');
+      assert.strictEqual(log.options.logTimestamp, true, 'logTimestamp overridden');
+      assert.strictEqual(log.options.prefix, '[APP] ', 'prefix overridden');
+      assert.strictEqual(log.options.logToFileByDefault, false, 'logToFileByDefault retains default');
     });
 
     test('creates convenience methods for custom systemLogs', function (assert) {
-      const chronicle = new Chronicle({
+      const log = new Log({
         systemLogs: {
           success: 'green',
           trace: 'gray',
         },
       });
 
-      assert.strictEqual(typeof chronicle.success, 'function', 'success method created');
-      assert.strictEqual(typeof chronicle.trace, 'function', 'trace method created');
-      assert.strictEqual(chronicle.info, undefined, 'default info not created when systemLogs overridden');
+      assert.strictEqual(typeof log.success, 'function', 'success method created');
+      assert.strictEqual(typeof log.trace, 'function', 'trace method created');
+      assert.strictEqual(log.info, undefined, 'default info not created when systemLogs overridden');
     });
 
     test('creates convenience methods for additionalLogs merged with systemLogs', function (assert) {
-      const chronicle = new Chronicle({
+      const log = new Log({
         additionalLogs: {
           custom: 'green',
         },
       });
 
-      assert.strictEqual(typeof chronicle.custom, 'function', 'custom method created');
-      assert.strictEqual(typeof chronicle.info, 'function', 'info still exists from default systemLogs');
-      assert.strictEqual(typeof chronicle.warn, 'function', 'warn still exists from default systemLogs');
-      assert.strictEqual(typeof chronicle.error, 'function', 'error still exists from default systemLogs');
+      assert.strictEqual(typeof log.custom, 'function', 'custom method created');
+      assert.strictEqual(typeof log.info, 'function', 'info still exists from default systemLogs');
+      assert.strictEqual(typeof log.warn, 'function', 'warn still exists from default systemLogs');
+      assert.strictEqual(typeof log.error, 'function', 'error still exists from default systemLogs');
     });
 
     test('sanitizes path to include trailing slash', function (assert) {
-      const chronicle = new Chronicle({ path: 'test-output' });
+      const log = new Log({ path: 'test-output' });
 
-      assert.ok(chronicle.options.path.endsWith('/'), 'path ends with /');
+      assert.ok(log.options.path.endsWith('/'), 'path ends with /');
     });
   });
 
@@ -92,8 +92,8 @@ module('[Unit] Chronicle', function (hooks) {
 
   module('log methods', function () {
     test('info logs to console', function (assert) {
-      const chronicle = new Chronicle();
-      chronicle.info('hello world');
+      const log = new Log();
+      log.info('hello world');
 
       assert.ok(consoleLogStub.calledOnce, 'console.log called once');
       const loggedMessage = consoleLogStub.firstCall.args[0];
@@ -101,8 +101,8 @@ module('[Unit] Chronicle', function (hooks) {
     });
 
     test('warn logs to console', function (assert) {
-      const chronicle = new Chronicle();
-      chronicle.warn('be careful');
+      const log = new Log();
+      log.warn('be careful');
 
       assert.ok(consoleLogStub.calledOnce, 'console.log called once');
       const loggedMessage = consoleLogStub.firstCall.args[0];
@@ -110,8 +110,8 @@ module('[Unit] Chronicle', function (hooks) {
     });
 
     test('error logs to console', function (assert) {
-      const chronicle = new Chronicle();
-      chronicle.error('something broke');
+      const log = new Log();
+      log.error('something broke');
 
       assert.ok(consoleLogStub.calledOnce, 'console.log called once');
       const loggedMessage = consoleLogStub.firstCall.args[0];
@@ -119,9 +119,9 @@ module('[Unit] Chronicle', function (hooks) {
     });
 
     test('debug uses console.dir with depth 6', function (assert) {
-      const chronicle = new Chronicle();
+      const log = new Log();
       const data = { foo: 'bar' };
-      chronicle.debug(data);
+      log.debug(data);
 
       assert.ok(consoleDirStub.calledOnce, 'console.dir called once');
       assert.deepEqual(consoleDirStub.firstCall.args[0], data, 'passes content to console.dir');
@@ -129,16 +129,16 @@ module('[Unit] Chronicle', function (hooks) {
     });
 
     test('log does not write to file when logToFile is false', function (assert) {
-      const chronicle = new Chronicle();
-      const writeStub = sinon.stub(chronicle, 'writeToFile');
-      chronicle.info('no file');
+      const log = new Log();
+      const writeStub = sinon.stub(log, 'writeToFile');
+      log.info('no file');
 
       assert.ok(writeStub.notCalled, 'writeToFile not called');
     });
 
     test('log includes prefix when configured', function (assert) {
-      const chronicle = new Chronicle({ prefix: '[PREFIX] ' });
-      chronicle.info('test message');
+      const log = new Log({ prefix: '[PREFIX] ' });
+      log.info('test message');
 
       const loggedMessage = consoleLogStub.firstCall.args[0];
       assert.ok(loggedMessage.includes('[PREFIX]'), 'prefix appears in output');
@@ -146,8 +146,8 @@ module('[Unit] Chronicle', function (hooks) {
     });
 
     test('log includes suffix when configured', function (assert) {
-      const chronicle = new Chronicle({ suffix: ' [END]' });
-      chronicle.info('test message');
+      const log = new Log({ suffix: ' [END]' });
+      log.info('test message');
 
       const loggedMessage = consoleLogStub.firstCall.args[0];
       assert.ok(loggedMessage.includes('[END]'), 'suffix appears in output');
@@ -158,47 +158,47 @@ module('[Unit] Chronicle', function (hooks) {
 
   module('defineType', function () {
     test('creates a new convenience method', function (assert) {
-      const chronicle = new Chronicle({ systemLogs: {} });
-      assert.strictEqual(chronicle.custom, undefined, 'custom method does not exist initially');
+      const log = new Log({ systemLogs: {} });
+      assert.strictEqual(log.custom, undefined, 'custom method does not exist initially');
 
-      chronicle.defineType('custom', 'green');
-      assert.strictEqual(typeof chronicle.custom, 'function', 'custom method created');
+      log.defineType('custom', 'green');
+      assert.strictEqual(typeof log.custom, 'function', 'custom method created');
     });
 
     test('does not overwrite existing convenience method', function (assert) {
-      const chronicle = new Chronicle({ systemLogs: { test: 'red' } });
-      const originalMethod = chronicle.test;
+      const log = new Log({ systemLogs: { test: 'red' } });
+      const originalMethod = log.test;
 
-      chronicle.defineType('test', 'blue');
-      assert.strictEqual(chronicle.test, originalMethod, 'method reference unchanged');
+      log.defineType('test', 'blue');
+      assert.strictEqual(log.test, originalMethod, 'method reference unchanged');
     });
 
     test('stores type-specific options', function (assert) {
-      const chronicle = new Chronicle({ systemLogs: { test: 'red' } });
-      chronicle.defineType('test', 'red', {
+      const log = new Log({ systemLogs: { test: 'red' } });
+      log.defineType('test', 'red', {
         logToFileByDefault: true,
         prefix: '>> ',
       });
 
-      assert.strictEqual(chronicle.typeOptions.test.logToFileByDefault, true, 'type option stored');
-      assert.strictEqual(chronicle.typeOptions.test.prefix, '>> ', 'type prefix stored');
+      assert.strictEqual(log.typeOptions.test.logToFileByDefault, true, 'type option stored');
+      assert.strictEqual(log.typeOptions.test.prefix, '>> ', 'type prefix stored');
     });
 
     test('throws on non-object options param', function (assert) {
-      const chronicle = new Chronicle({ systemLogs: { test: 'red' } });
+      const log = new Log({ systemLogs: { test: 'red' } });
 
       assert.throws(
-        () => chronicle.defineType('test', 'red', 'bad'),
+        () => log.defineType('test', 'red', 'bad'),
         /The options param must be an object/,
         'throws descriptive error',
       );
     });
 
     test('throws on invalid option keys', function (assert) {
-      const chronicle = new Chronicle({ systemLogs: { test: 'red' } });
+      const log = new Log({ systemLogs: { test: 'red' } });
 
       assert.throws(
-        () => chronicle.defineType('test', 'red', { invalidOption: true }),
+        () => log.defineType('test', 'red', { invalidOption: true }),
         /invalidOption is not a valid configuration object/,
         'throws with invalid option name',
       );
@@ -209,17 +209,17 @@ module('[Unit] Chronicle', function (hooks) {
 
   module('getOptionForType', function () {
     test('returns global option when no type-specific option set', function (assert) {
-      const chronicle = new Chronicle({ prefix: '[GLOBAL] ' });
+      const log = new Log({ prefix: '[GLOBAL] ' });
 
-      const result = chronicle.getOptionForType('info', 'prefix');
+      const result = log.getOptionForType('info', 'prefix');
       assert.strictEqual(result, '[GLOBAL] ', 'falls back to global option');
     });
 
     test('returns type-specific option when set', function (assert) {
-      const chronicle = new Chronicle({ systemLogs: { test: 'red' } });
-      chronicle.defineType('test', 'red', { prefix: '[TYPE] ' });
+      const log = new Log({ systemLogs: { test: 'red' } });
+      log.defineType('test', 'red', { prefix: '[TYPE] ' });
 
-      const result = chronicle.getOptionForType('test', 'prefix');
+      const result = log.getOptionForType('test', 'prefix');
       assert.strictEqual(result, '[TYPE] ', 'uses type-specific option');
     });
   });
@@ -228,8 +228,8 @@ module('[Unit] Chronicle', function (hooks) {
 
   module('chalk', function () {
     test('returns chalk instance', function (assert) {
-      const chronicle = new Chronicle();
-      const chalkInstance = chronicle.chalk();
+      const log = new Log();
+      const chalkInstance = log.chalk();
 
       assert.ok(chalkInstance, 'chalk instance returned');
       assert.strictEqual(typeof chalkInstance.red, 'function', 'chalk has color methods');

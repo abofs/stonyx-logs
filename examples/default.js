@@ -1,16 +1,16 @@
 /*
  * Default settings (Out of the box)
- * Instantiate chronicle with default settings
+ * Instantiate log with default settings
  */
 
-import Chronicle from '../src/index.js';
+import Log from '../src/index.js';
 
-const chronicle = new Chronicle();
+const log = new Log();
 
-chronicle.info('Info: sample application has started');
-chronicle.warn('Warning: this is just a sample');
-chronicle.error('Error: no application logic detected', true); // passes true in order to log to logs/error.log file
-chronicle.debug({
+log.info('Info: sample application has started');
+log.warn('Warning: this is just a sample');
+log.error('Error: no application logic detected', true); // passes true in order to log to logs/error.log file
+log.debug({
   foo: 'bar',
   x: 6,
 }, true);

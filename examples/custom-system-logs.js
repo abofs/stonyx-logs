@@ -1,11 +1,11 @@
 /*
  * Fully custom system logging configuration
- * instantiate chronicle with custom system logs
+ * instantiate log with custom system logs
  */
 
-import Chronicle from '../src/index.js';
+import Log from '../src/index.js';
 
-const chronicle = new Chronicle({
+const log = new Log({
   systemLogs: {
     blue: '#007cae',
     yellow: '#ae8f00', // bright orange
@@ -13,6 +13,6 @@ const chronicle = new Chronicle({
   },
 });
 
-chronicle.blue('Info: using custom method blue, sample application has started');
-chronicle.yellow('Warning: using custom method yellow, this is just a sample');
-chronicle.red('Error: using custom method red, no application logic detected', false);
+log.blue('Info: using custom method blue, sample application has started');
+log.yellow('Warning: using custom method yellow, this is just a sample');
+log.red('Error: using custom method red, no application logic detected', false);

@@ -1,25 +1,25 @@
 import Qunit from 'qunit';
-import Chronicle from '../src/index.js';
+import Log from '../src/index.js';
 import { fileURLToPath } from 'url';
 import projectPath from 'path';
 
 const { module, test } = Qunit;
 
-module('[Unit] Chronicle Tests', function() {
+module('[Unit] Log Tests', function() {
     test('Path is sanitized correctly', function(assert) {
-      const chronicle = new Chronicle({ path: 'test' });
+      const log = new Log({ path: 'test' });
       const expectedPath = `${projectPath.dirname(fileURLToPath(import.meta.url))}/`;
   
-      assert.equal(chronicle.options.path, expectedPath);
+      assert.equal(log.options.path, expectedPath);
     });
 
     test('Chalk advance settings can be configured', function(assert) {
-        const chronicle = new Chronicle();
-        const { settingToChalkColorFunction } = chronicle.color;
+        const log = new Log();
+        const { settingToChalkColorFunction } = log.color;
 
-        const chalkAdvanced1 = chronicle.chalk().blue.bgRed.bold;
-        const chalkAdvanced2 = chronicle.chalk().bold.red;
-        const chalkAdvanced3 = chronicle.chalk().bgCyan.white;
+        const chalkAdvanced1 = log.chalk().blue.bgRed.bold;
+        const chalkAdvanced2 = log.chalk().bold.red;
+        const chalkAdvanced3 = log.chalk().bgCyan.white;
         const chalkColors = [];
         
         try {
@@ -47,18 +47,18 @@ module('[Unit] Chronicle Tests', function() {
     });
 
     test('Log colors are correctly set', function(assert) {
-        const chronicle = new Chronicle({ systemLogs: {} });
+        const log = new Log({ systemLogs: {} });
 
         try {
-            chronicle.color.setLogColor('test1', 'red');
-            chronicle.color.setLogColor('test2', 'white');
-            chronicle.color.setLogColor('test3', 'blue');
+            log.color.setLogColor('test1', 'red');
+            log.color.setLogColor('test2', 'white');
+            log.color.setLogColor('test3', 'blue');
         } catch { error => {
             assert.throws(error);
         }}
 
         const expectedKeys = ['test1', 'test2', 'test3']
 
-        assert.deepEqual(Object.keys(chronicle.color.types), expectedKeys, 'configured color keys');
+        assert.deepEqual(Object.keys(log.color.types), expectedKeys, 'configured color keys');
     });
 });

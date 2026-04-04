@@ -1,11 +1,11 @@
 /*
  * Fully custom system logging configuration
- * instantiate chronicle with custom options
+ * instantiate log with custom options
  */
 
-import Chronicle from '../src/index.js';
+import Log from '../src/index.js';
 
-const chronicle = new Chronicle({
+const log = new Log({
   logToFileByDefault: true,
   logTimestamp: true,
   path: 'custom-logs', // purposely didn't include trailing "/" to test input sanitizer
@@ -13,6 +13,6 @@ const chronicle = new Chronicle({
   suffix: '\n=============================================================== \n',
 });
 
-chronicle.info('Info: sample application has started');
-chronicle.warn('Warning: this is just a sample');
-chronicle.error('Error: no application logic detected');
+log.info('Info: sample application has started');
+log.warn('Warning: this is just a sample');
+log.error('Error: no application logic detected');

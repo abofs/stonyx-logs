@@ -1,6 +1,6 @@
 import Qunit from 'qunit';
 import { promises as fsp } from 'fs';
-import Chronicle from '../src/index.js';
+import Log from '../src/index.js';
 
 const { module, test } = Qunit;
 
@@ -22,16 +22,16 @@ async function targetExists(target) {
   return targetExists;
 }
 
-module('[Integration] Chronicle Tests', () => {
+module('[Integration] Log Tests', () => {
   test('Convenience methods for systemLogs are successfully created', assert => {
-    const chronicle = new Chronicle({
+    const log = new Log({
       systemLogs: {
         a: 'white',
         b: 'blue',
         c: 'red',
       },
     });
-    const { a, b, c, info, warn, error } = chronicle;
+    const { a, b, c, info, warn, error } = log;
 
     assert.deepEqual(
       [typeof a, typeof b, typeof c, info, warn, error],
@@ -41,14 +41,14 @@ module('[Integration] Chronicle Tests', () => {
   });
 
   test('Convenience methods for additionalLogs are successfully created', assert => {
-    const chronicle = new Chronicle({
+    const log = new Log({
       additionalLogs: {
         a: 'white',
         b: 'blue',
         error: 'red',
       },
     });
-    const { a, b, info, warn, error } = chronicle;
+    const { a, b, info, warn, error } = log;
 
     assert.deepEqual(
       [typeof a, typeof b, typeof info, typeof warn, typeof error],
@@ -58,14 +58,14 @@ module('[Integration] Chronicle Tests', () => {
   });
 
   test('Debug method is successfully created', assert => {
-    const chronicle = new Chronicle();
+    const log = new Log();
 
-    assert.equal(typeof chronicle.debug, 'function', 'debug method exists');
+    assert.equal(typeof log.debug, 'function', 'debug method exists');
   });
 
   test('Log creation respects the default logToFileByDefault as false', async assert => {
-    const chronicle = new Chronicle({ systemLogs: { test: 'green' }});
-    const { path } = chronicle.options;
+    const log = new Log({ systemLogs: { test: 'green' }});
+    const { path } = log.options;
 
     let logDirExists = await targetExists(path);
 
@@ -74,12 +74,12 @@ module('[Integration] Chronicle Tests', () => {
       await removeDirectory(path, assert);
     }
 
-    await chronicle.test('log test');
+    await log.test('log test');
     logDirExists = await targetExists(path);
 
     assert.notOk(logDirExists, 'Log directory does not exist');
 
-    await chronicle.test('log to file test', true);
+    await log.test('log to file test', true);
     logDirExists = await targetExists(path);
     const logFileExists = await targetExists(`${path}test.log`);
 
@@ -90,11 +90,11 @@ module('[Integration] Chronicle Tests', () => {
   });
 
   test('Log creation respects the configured logToFileByDefault setting as true', async assert => {
-    const chronicle = new Chronicle({
+    const log = new Log({
       logToFileByDefault: true,
       systemLogs: { test: 'green' },
     });
-    const { path } = chronicle.options;
+    const { path } = log.options;
 
     let logDirExists = await targetExists(path);
 
@@ -103,7 +103,7 @@ module('[Integration] Chronicle Tests', () => {
       await removeDirectory(path, assert);
     }
 
-    await chronicle.test('log to file test');
+    await log.test('log to file test');
     logDirExists = await targetExists(path);
     const logFileExists = await targetExists(`${path}test.log`);
 
@@ -112,22 +112,22 @@ module('[Integration] Chronicle Tests', () => {
 
     await removeDirectory(path, assert); // cleanup directory
 
-    await chronicle.test('log to file test', false);
+    await log.test('log to file test', false);
     logDirExists = await targetExists(path);
 
     assert.notOk(logDirExists, 'log directory does not exists');
   });
 
   test('Log creation respects the configured path setting', async assert => {
-    const chronicle = new Chronicle({
+    const log = new Log({
       path: 'test-logs',
       systemLogs: { test: 'green' },
     });
-    const { path } = chronicle.options;
+    const { path } = log.options;
 
     assert.ok(path.includes('test-logs'), 'configured directory is correct');
 
-    await chronicle.test('log to file test', true);
+    await log.test('log to file test', true);
     const logDirExists = await targetExists(path);
     const logFileExists = await targetExists(`${path}test.log`);
 
@@ -138,25 +138,25 @@ module('[Integration] Chronicle Tests', () => {
   });
 
   test('Log creation respects type specific options set via defineType', async assert => {
-    const chronicle = new Chronicle({ systemLogs: { foo: 'green' }});
-    const { path } = chronicle.options;
-    chronicle.defineType('bar', 'yellow', {
+    const log = new Log({ systemLogs: { foo: 'green' }});
+    const { path } = log.options;
+    log.defineType('bar', 'yellow', {
       logToFileByDefault: true,
       logTimestamp: true,
       path: 'test-logs',
       prefix: '--------------------------------------------------------------- \n',
       suffix: '\n=============================================================== \n',
     });
-    const barPath = chronicle.typeOptions.bar.path;
+    const barPath = log.typeOptions.bar.path;
 
-    await chronicle.foo('log with no prefix and suffix, and do not create logs');
+    await log.foo('log with no prefix and suffix, and do not create logs');
     let logDirExists = await targetExists(path);
     let barLogDirExists = await targetExists(barPath);
 
     assert.notOk(logDirExists, 'log directory does not exist');
     assert.notOk(barLogDirExists, 'defineType log directory does not exist');
 
-    await chronicle.bar('log with timestamp, prefix, suffix, and create custom logs');
+    await log.bar('log with timestamp, prefix, suffix, and create custom logs');
     logDirExists = await targetExists(path);
     barLogDirExists = await targetExists(barPath);
     const logFileExists = await targetExists(`${barPath}bar.log`);
@@ -170,10 +170,10 @@ module('[Integration] Chronicle Tests', () => {
 
   test('App crashes with descriptive error if user passes a non-object param to for options', async assert => {
     assert.expect(1); // expect assertion to happen in catch block
-    const chronicle = new Chronicle({ systemLogs: { test: 'green' }});
+    const log = new Log({ systemLogs: { test: 'green' }});
 
     try {
-      chronicle.defineType('test', 'yellow', true);
+      log.defineType('test', 'yellow', true);
     } catch (error) {
       assert.equal(error, 'The options param must be an object.');
     }
@@ -181,10 +181,10 @@ module('[Integration] Chronicle Tests', () => {
 
   test('App crashes with descriptive error when user uses defineType with bad options', async assert => {
     assert.expect(2); // expect assertions to happen in catch block
-    const chronicle = new Chronicle({ systemLogs: { test: 'green' }});
+    const log = new Log({ systemLogs: { test: 'green' }});
 
     try {
-      chronicle.defineType('test', 'yellow', {
+      log.defineType('test', 'yellow', {
         invalidOption1: true,
         invalidOption2: true,
       });
