@@ -1,5 +1,6 @@
 import { mkdirSync, promises as fsp } from 'fs';
 import { fileURLToPath } from 'url';
+import { hostname } from 'os';
 import projectPath from 'path';
 import Color from './color.js';
 
@@ -9,6 +10,7 @@ const defaultOptions = {
   path: 'logs/', // default log directory (relative to main project root directory)
   prefix: '',
   suffix: '',
+  filename: '', // template for log file name (e.g. 'error-{date}.log'), defaults to '{type}.log'
 
   // log types with corresponding color settings
   additionalLogs: {},
@@ -129,12 +131,39 @@ export default class Chronicle {
 
   async writeToFile(type, content, overwrite) {
     const path = this.getOptionForType(type, 'path');
-    const targetLog = `${path}${type}.log`;
+    const filenameTemplate = this.getOptionForType(type, 'filename');
+    const resolvedName = this.resolveFilename(filenameTemplate, type);
+    const targetLog = `${path}${resolvedName}`;
     await this.validateFileAndDirectory(path, targetLog);
 
     const fileAction = overwrite ? fsp.writeFile : fsp.appendFile;
 
     return fileAction(targetLog, content);
+  }
+
+  // resolves template variables in a filename string
+  resolveFilename(template, type) {
+    // default to '{type}.log' when no template is configured
+    if (!template) return `${type}.log`;
+
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+
+    const variables = {
+      date: `${yyyy}-${mm}-${dd}`,
+      type,
+      pid: process.pid,
+      hostname: hostname(),
+    };
+
+    const resolved = template.replace(/\{(\w+)\}/g, (match, key) => {
+      return variables[key] !== undefined ? variables[key] : match;
+    });
+
+    // sanitize: prevent path traversal and disallow directory separators
+    return resolved.replace(/\.\./g, '').replace(/[/\\]/g, '');
   }
 
   // attempts to create file and/or directory if they don't already exist
