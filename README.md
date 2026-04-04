@@ -201,6 +201,7 @@ const chronicle = new Chronicle({
   path: 'logs/',
   prefix: '',
   suffix: '',
+  filename: '',
   additionalLogs: {},
   systemLogs: {
     info: 'cyan',
@@ -217,6 +218,7 @@ const chronicle = new Chronicle({
 | `path` | **String** | *'logs/'* | Path in which to store log files. This setting is relative to your project's root directory. |
 | `prefix` | **String** | *''* | Prefix string to prepend all log messages for all log types with the exception of *debug*. |
 | `suffix` | **String** | *''* | Suffix string to tack on to all log messages for all log types with the exception of *debug*. |
+| `filename` | **String** | *''* | Template for log file names with variable support. Defaults to `{type}.log` when empty. See [dynamic file names](#dynamic-file-names). |
 | `additionalLogs` | **Object** | | Key value pair object containing log type to color setting for logs that will be merged with `systemLogs` |
 | `systemLogs` | **Object** | | Key value pair object containing log type to color setting for main **Chronicle** logs available in application |
 
@@ -269,6 +271,39 @@ chronicle.notice('This new log is the hex "#c0c0c0" share of gray');
 ```
 
 `defineType()` can also be used as an alternative to populating the `additionalLogs` setting in the constructor, as if the setting doesn't already exist, it will then be created.
+
+### Dynamic File Names
+
+The `filename` option supports template variables that are resolved at write-time, allowing each log type to produce uniquely named files.
+
+#### Supported Variables
+
+| Variable | Resolves To | Example Output |
+| :---: | :--- | :--- |
+| `{date}` | Current date in YYYY-MM-DD format | `2026-04-04` |
+| `{type}` | Log type name | `error` |
+| `{pid}` | Current process ID | `12345` |
+| `{hostname}` | Machine hostname | `my-server` |
+
+#### Examples
+
+```js
+// Per-type filename via defineType
+chronicle.defineType('error', 'red', { filename: 'error-{date}.log' });
+// writes to: logs/error-2026-04-04.log
+
+// Per-type filename with multiple variables
+chronicle.defineType('info', 'cyan', { filename: '{type}-{hostname}-{date}.log' });
+// writes to: logs/info-my-server-2026-04-04.log
+
+// Global filename template via constructor
+const chronicle = new Chronicle({ filename: '{type}-{date}.log' });
+// all types write to: logs/<type>-2026-04-04.log
+```
+
+When no `filename` is configured, the default behavior of `{type}.log` is preserved for full backward compatibility.
+
+Path traversal characters (`..`, `/`, `\`) are automatically stripped from resolved file names for security.
 
 ## Origin
 
