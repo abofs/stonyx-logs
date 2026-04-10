@@ -1,6 +1,6 @@
 {
   "name": "@stonyx/logs",
-  "version": "1.0.1-beta.11",
+  "version": "1.0.1-beta.12",
   "description": "Simplified logging for node applications",
   "type": "module",
   "main": "dist/index.js",
