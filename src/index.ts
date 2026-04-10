@@ -2,17 +2,26 @@ import { mkdirSync, promises as fsp } from 'fs';
 import { fileURLToPath } from 'url';
 import { hostname } from 'os';
 import projectPath from 'path';
-import Color from './color.js';
+import Color, { type ColorSetting, type ChalkColorFn } from './color.js';
 
-const defaultOptions = {
-  logToFileByDefault: false, // default setting (overridable by logToFile param)
-  logTimestamp: false, // option to include timestamp in console logs
-  path: 'logs/', // default log directory (relative to main project root directory)
+export interface LogOptions {
+  logToFileByDefault: boolean;
+  logTimestamp: boolean;
+  path: string;
+  prefix: string;
+  suffix: string;
+  filename: string;
+  additionalLogs: Record<string, ColorSetting>;
+  systemLogs: Record<string, ColorSetting>;
+}
+
+const defaultOptions: LogOptions = {
+  logToFileByDefault: false,
+  logTimestamp: false,
+  path: 'logs/',
   prefix: '',
   suffix: '',
-  filename: '', // template for log file name (e.g. 'error-{date}.log'), defaults to '{type}.log'
-
-  // log types with corresponding color settings
+  filename: '',
   additionalLogs: {},
   systemLogs: {
     info: 'cyan',
@@ -25,22 +34,29 @@ const defaultOptions = {
 const optionKeys = Object.keys(defaultOptions);
 
 export default class Log {
-  constructor(options = defaultOptions) {
-    options = {
+  options: LogOptions;
+  color: Color;
+  typeOptions: Record<string, Partial<LogOptions>> = {};
+
+  // Dynamic convenience methods added at runtime
+  [key: string]: unknown;
+
+  constructor(options: Partial<LogOptions> = {}) {
+    const merged: LogOptions = {
       ...defaultOptions,
       ...options,
     };
-    this.options = options;
+    this.options = merged;
     this.options.path = this.sanitizePath(this.options.path);
 
-    const { additionalLogs, systemLogs } = options;
-    const logs = {
+    const { additionalLogs, systemLogs } = merged;
+    const logs: Record<string, ColorSetting> = {
       ...systemLogs,
       ...additionalLogs,
     };
 
     this.color = new Color();
-    this.typeOptions = [];
+    this.typeOptions = {};
 
     // create direct convenience methods for logging
     for (const type of Object.keys(logs)) {
@@ -49,7 +65,7 @@ export default class Log {
   }
 
   // records setting and options for log type, and creates convenience method ie: log.info()
-  defineType(type, setting, options = null) {
+  defineType(type: string, setting: ColorSetting, options: Partial<LogOptions> | null = null): void {
     this.color.setLogColor(type, setting);
 
     // create convenience method if it doesn't exist
@@ -58,56 +74,60 @@ export default class Log {
     if (!options) return;
     if (typeof options !== 'object') throw 'The options param must be an object.';
 
-    for (let option of Object.keys(options)) {
+    for (const option of Object.keys(options)) {
       if (!optionKeys.includes(option)) {
         throw `${option} is not a valid configuration object.`
-        + '\n For a list of available options, see https://github.com/abofs/stonyx-logs#configuration';
+          + '\n For a list of available options, see https://github.com/abofs/stonyx-logs#configuration';
       }
 
       // sanitize path input
-      if (option === 'path') options[option] = this.sanitizePath(options[option]);
+      if (option === 'path') {
+        (options as Record<string, unknown>)[option] = this.sanitizePath(
+          (options as Record<string, unknown>)[option] as string
+        );
+      }
     }
 
     this.typeOptions[type] = options;
   }
 
   // proxy through `logAction` method in order to set defaults based on argument presence
-  createConvenienceMethod(type) {
-    this[type] = (content, logToFile, overwrite = false) =>
+  createConvenienceMethod(type: string): void {
+    (this as Record<string, unknown>)[type] = (content: string, logToFile?: boolean, overwrite = false) =>
       this.logAction(type, content, logToFile, overwrite);
   }
 
   // validates params and sets configuration-based defaults for logging
-  logAction(type, content, logToFile, overwrite) {
+  logAction(type: string, content: string, logToFile?: boolean, overwrite?: boolean): Promise<void> {
     // set logToFile default based on class options when not set
-    if (arguments[2] === undefined) logToFile = this.getOptionForType(type, 'logToFileByDefault');
+    if (logToFile === undefined) logToFile = this.getOptionForType(type, 'logToFileByDefault') as boolean;
 
     // treat overwrite default as true for log type "debug"
-    if (type === 'debug' && arguments[3] === undefined) overwrite = true;
+    if (type === 'debug' && overwrite === undefined) overwrite = true;
 
-    return this.log(content, type, logToFile, overwrite);
+    return this.log(content, type, logToFile, overwrite ?? false);
   }
 
   // retrieves option setting for given type, default to global
-  getOptionForType(type, option) {
+  getOptionForType(type: string, option: keyof LogOptions): LogOptions[keyof LogOptions] {
     const options = this.typeOptions[type];
     if (!options || !options[option]) return this.options[option];
 
-    return options[option];
+    return options[option] as LogOptions[keyof LogOptions];
   }
 
   // exposes chalk for custom color options via defineType
-  chalk() {
+  chalk(): ReturnType<Color['getChalkInstance']> {
     return this.color.getChalkInstance();
   }
 
   // logs to console, and conditionally to file
-  async log(content, type, logToFile, overwrite) {
-    const logTimestamp = this.getOptionForType(type, 'logTimestamp');
+  async log(content: string, type: string, logToFile: boolean, overwrite: boolean): Promise<void> {
+    const logTimestamp = this.getOptionForType(type, 'logTimestamp') as boolean;
     const timestamp = `[${new Date().toLocaleString('en-US')}]`;
     const chalkColorFunction = this.color.getLogColor(type);
-    let prefix = this.getOptionForType(type, 'prefix');
-    let suffix = this.getOptionForType(type, 'suffix');
+    let prefix = this.getOptionForType(type, 'prefix') as string;
+    let suffix = this.getOptionForType(type, 'suffix') as string;
     if (logTimestamp) prefix += `${timestamp} `;
     if (prefix) prefix = chalkColorFunction(prefix);
     if (suffix) suffix = chalkColorFunction(suffix);
@@ -117,32 +137,32 @@ export default class Log {
 
     if (!logToFile) return;
 
-    return this.writeToFile(type, `${timestamp} ${content}\n`, overwrite);
+    await this.writeToFile(type, `${timestamp} ${content}\n`, overwrite);
   }
 
   // direct hardcoded debug method (log to file functionality is limited)
-  async debug(content, logToFile = false, overwrite = true) {
+  async debug(content: unknown, logToFile = false, overwrite = true): Promise<void> {
     console.dir(content, { depth: 6 }); // eslint-disable-line no-console
 
     if (!logToFile) return;
 
-    return this.writeToFile('debug', JSON.stringify(content, null, 2), overwrite);
+    await this.writeToFile('debug', JSON.stringify(content, null, 2), overwrite);
   }
 
-  async writeToFile(type, content, overwrite) {
-    const path = this.getOptionForType(type, 'path');
-    const filenameTemplate = this.getOptionForType(type, 'filename');
+  async writeToFile(type: string, content: string, overwrite: boolean): Promise<void> {
+    const path = this.getOptionForType(type, 'path') as string;
+    const filenameTemplate = this.getOptionForType(type, 'filename') as string;
     const resolvedName = this.resolveFilename(filenameTemplate, type);
     const targetLog = `${path}${resolvedName}`;
     await this.validateFileAndDirectory(path, targetLog);
 
     const fileAction = overwrite ? fsp.writeFile : fsp.appendFile;
 
-    return fileAction(targetLog, content);
+    await fileAction(targetLog, content);
   }
 
   // resolves template variables in a filename string
-  resolveFilename(template, type) {
+  resolveFilename(template: string, type: string): string {
     // default to '{type}.log' when no template is configured
     if (!template) return `${type}.log`;
 
@@ -151,15 +171,15 @@ export default class Log {
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
 
-    const variables = {
+    const variables: Record<string, string | number> = {
       date: `${yyyy}-${mm}-${dd}`,
       type,
       pid: process.pid,
       hostname: hostname(),
     };
 
-    const resolved = template.replace(/\{(\w+)\}/g, (match, key) => {
-      return variables[key] !== undefined ? variables[key] : match;
+    const resolved = template.replace(/\{(\w+)\}/g, (match, key: string) => {
+      return variables[key] !== undefined ? String(variables[key]) : match;
     });
 
     // sanitize: prevent path traversal and disallow directory separators
@@ -167,8 +187,8 @@ export default class Log {
   }
 
   // attempts to create file and/or directory if they don't already exist
-  async validateFileAndDirectory(path, targetLog) {
-    const errorMethod = this.error || console.error; // prefer native method unless removed by user
+  async validateFileAndDirectory(path: string, targetLog: string): Promise<void> {
+    const errorMethod = (this.error as ((msg: string) => void) | undefined) || console.error;
 
     mkdirSync(path, { recursive: true });
 
@@ -181,7 +201,7 @@ export default class Log {
   }
 
   // method to conditionally sanitize user configuration input
-  sanitizePath(path) {
+  sanitizePath(path: string): string {
     const moduleDir = projectPath.dirname(fileURLToPath(import.meta.url));
     const delim = moduleDir.includes('node_modules') ? 'node_modules' : 'src';
     const splitDir = moduleDir.split(delim);

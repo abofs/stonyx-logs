@@ -7,3 +7,8 @@
 # ide
 .vscode/*
 *.vsix
+
+# build output
+dist/
+dist-test/
+.ts-migration-log.json

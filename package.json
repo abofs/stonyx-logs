@@ -3,13 +3,20 @@
   "version": "1.0.1-beta.11",
   "description": "Simplified logging for node applications",
   "type": "module",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.js",
-    "./color": "./src/color.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./color": {
+      "types": "./dist/color.d.ts",
+      "default": "./dist/color.js"
+    }
   },
   "files": [
-    "src",
+    "dist",
     "README.md"
   ],
   "publishConfig": {
@@ -17,7 +24,9 @@
     "provenance": true
   },
   "scripts": {
-    "test": "qunit 'test/unit/**/*-test.js'",
+    "build": "tsc",
+    "build:test": "tsc -p tsconfig.test.json",
+    "test": "pnpm build && pnpm build:test && qunit 'dist-test/test/unit/**/*-test.js'",
     "lint": "eslint . --fix"
   },
   "repository": {
@@ -47,9 +56,13 @@
     "chalk": "^5.3.0"
   },
   "devDependencies": {
+    "@types/node": "^25.5.2",
+    "@types/qunit": "^2.19.13",
+    "@types/sinon": "^21.0.1",
     "eslint": "^8.27.0",
     "eslint-plugin-node": "^11.1.0",
     "qunit": "^2.19.3",
-    "sinon": "^17.0.0"
+    "sinon": "^17.0.0",
+    "typescript": "^5.8.3"
   }
 }
