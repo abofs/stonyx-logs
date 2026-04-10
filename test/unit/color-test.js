@@ -12,7 +12,7 @@ module('[Unit] Color', function () {
       const color = new Color();
 
       assert.ok(color instanceof Color, 'is a Color instance');
-      assert.deepEqual(color.types, [], 'types starts as empty array');
+      assert.deepEqual(color.types, {}, 'types starts as empty object');
     });
   });
 
