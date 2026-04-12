@@ -21,7 +21,7 @@ export default class Color {
 
   // retrieves chalk color function, and fully validates output
   settingToChalkColorFunction(setting: ColorSetting): ChalkColorFn {
-    const errorMessage = 'Invalid chalk color function.'
+    const errorMessage = 'Invalid chalk color function. '
       + 'For help with color settings, see https://github.com/abofs/stonyx-logs#defining-logs--colors';
 
     switch (typeof setting) {
@@ -32,7 +32,7 @@ export default class Color {
       if (!chalkColorFunction
           || typeof chalkColorFunction !== 'function'
           || typeof chalkColorFunction('') !== 'string') {
-        throw errorMessage;
+        throw new Error(errorMessage);
       }
 
       return chalkColorFunction;
@@ -40,13 +40,13 @@ export default class Color {
     case 'function':
       // validate that given function returns a string
       if (typeof setting('') !== 'string') {
-        throw errorMessage;
+        throw new Error(errorMessage);
       }
 
       return setting;
 
     default:
-      throw errorMessage;
+      throw new Error(errorMessage);
     }
   }
 }

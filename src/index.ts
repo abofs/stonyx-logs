@@ -72,12 +72,12 @@ export default class Log {
     if (!this[type]) this.createConvenienceMethod(type);
 
     if (!options) return;
-    if (typeof options !== 'object') throw 'The options param must be an object.';
+    if (typeof options !== 'object') throw new Error('The options param must be an object.');
 
     for (const option of Object.keys(options)) {
       if (!optionKeys.includes(option)) {
-        throw `${option} is not a valid configuration object.`
-          + '\n For a list of available options, see https://github.com/abofs/stonyx-logs#configuration';
+        throw new Error(`${option} is not a valid configuration object.`
+          + '\n For a list of available options, see https://github.com/abofs/stonyx-logs#configuration');
       }
 
       // sanitize path input
@@ -206,7 +206,7 @@ export default class Log {
     const delim = moduleDir.includes('node_modules') ? 'node_modules' : 'src';
     const splitDir = moduleDir.split(delim);
 
-    if (splitDir.length < 2) throw ('Failed to locate your project\'s root directory.');
+    if (splitDir.length < 2) throw new Error('Failed to locate your project\'s root directory.');
 
     // use project root directory behind path
     path = projectPath.resolve(splitDir[0], path);
