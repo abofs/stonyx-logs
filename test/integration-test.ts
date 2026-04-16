@@ -4,7 +4,7 @@ import Log from '../src/index.js';
 
 const { module, test } = Qunit;
 
-function removeDirectory(path, assert) {
+async function removeDirectory(path: string, assert: Assert): Promise<void> {
   return fsp.rm(path, {
     recursive: true,
     force: true,
@@ -15,11 +15,11 @@ function removeDirectory(path, assert) {
   });
 }
 
-async function targetExists(target) {
-  let targetExists;
-  await fsp.access(target).then(() => targetExists = true).catch(() => targetExists = false);
+async function targetExists(target: string): Promise<boolean> {
+  let exists = false;
+  await fsp.access(target).then(() => { exists = true; }).catch(() => { exists = false; });
 
-  return targetExists;
+  return exists;
 }
 
 module('[Integration] Log Tests', () => {
@@ -64,7 +64,7 @@ module('[Integration] Log Tests', () => {
   });
 
   test('Log creation respects the default logToFileByDefault as false', async assert => {
-    const log = new Log({ systemLogs: { test: 'green' }});
+    const log = new Log({ systemLogs: { test: 'green' } });
     const { path } = log.options;
 
     let logDirExists = await targetExists(path);
@@ -74,12 +74,12 @@ module('[Integration] Log Tests', () => {
       await removeDirectory(path, assert);
     }
 
-    await log.test('log test');
+    await (log.test as (msg: string, logToFile?: boolean) => Promise<void>)('log test');
     logDirExists = await targetExists(path);
 
     assert.notOk(logDirExists, 'Log directory does not exist');
 
-    await log.test('log to file test', true);
+    await (log.test as (msg: string, logToFile?: boolean) => Promise<void>)('log to file test', true);
     logDirExists = await targetExists(path);
     const logFileExists = await targetExists(`${path}test.log`);
 
@@ -103,7 +103,7 @@ module('[Integration] Log Tests', () => {
       await removeDirectory(path, assert);
     }
 
-    await log.test('log to file test');
+    await (log.test as (msg: string, logToFile?: boolean) => Promise<void>)('log to file test');
     logDirExists = await targetExists(path);
     const logFileExists = await targetExists(`${path}test.log`);
 
@@ -112,7 +112,7 @@ module('[Integration] Log Tests', () => {
 
     await removeDirectory(path, assert); // cleanup directory
 
-    await log.test('log to file test', false);
+    await (log.test as (msg: string, logToFile?: boolean) => Promise<void>)('log to file test', false);
     logDirExists = await targetExists(path);
 
     assert.notOk(logDirExists, 'log directory does not exists');
@@ -127,7 +127,7 @@ module('[Integration] Log Tests', () => {
 
     assert.ok(path.includes('test-logs'), 'configured directory is correct');
 
-    await log.test('log to file test', true);
+    await (log.test as (msg: string, logToFile?: boolean) => Promise<void>)('log to file test', true);
     const logDirExists = await targetExists(path);
     const logFileExists = await targetExists(`${path}test.log`);
 
@@ -138,7 +138,7 @@ module('[Integration] Log Tests', () => {
   });
 
   test('Log creation respects type specific options set via defineType', async assert => {
-    const log = new Log({ systemLogs: { foo: 'green' }});
+    const log = new Log({ systemLogs: { foo: 'green' } });
     const { path } = log.options;
     log.defineType('bar', 'yellow', {
       logToFileByDefault: true,
@@ -147,16 +147,16 @@ module('[Integration] Log Tests', () => {
       prefix: '--------------------------------------------------------------- \n',
       suffix: '\n=============================================================== \n',
     });
-    const barPath = log.typeOptions.bar.path;
+    const barPath = log.typeOptions.bar.path as string;
 
-    await log.foo('log with no prefix and suffix, and do not create logs');
+    await (log.foo as (msg: string) => Promise<void>)('log with no prefix and suffix, and do not create logs');
     let logDirExists = await targetExists(path);
     let barLogDirExists = await targetExists(barPath);
 
     assert.notOk(logDirExists, 'log directory does not exist');
     assert.notOk(barLogDirExists, 'defineType log directory does not exist');
 
-    await log.bar('log with timestamp, prefix, suffix, and create custom logs');
+    await (log.bar as (msg: string) => Promise<void>)('log with timestamp, prefix, suffix, and create custom logs');
     logDirExists = await targetExists(path);
     barLogDirExists = await targetExists(barPath);
     const logFileExists = await targetExists(`${barPath}bar.log`);
@@ -170,27 +170,29 @@ module('[Integration] Log Tests', () => {
 
   test('App crashes with descriptive error if user passes a non-object param to for options', async assert => {
     assert.expect(1); // expect assertion to happen in catch block
-    const log = new Log({ systemLogs: { test: 'green' }});
+    const log = new Log({ systemLogs: { test: 'green' } });
 
     try {
-      log.defineType('test', 'yellow', true);
+      log.defineType('test', 'yellow', true as unknown as Partial<import('../src/index.js').LogOptions>);
     } catch (error) {
-      assert.equal(error, 'The options param must be an object.');
+      const message = error instanceof Error ? error.message : String(error);
+      assert.equal(message, 'The options param must be an object.');
     }
   });
 
   test('App crashes with descriptive error when user uses defineType with bad options', async assert => {
     assert.expect(2); // expect assertions to happen in catch block
-    const log = new Log({ systemLogs: { test: 'green' }});
+    const log = new Log({ systemLogs: { test: 'green' } });
 
     try {
       log.defineType('test', 'yellow', {
         invalidOption1: true,
         invalidOption2: true,
-      });
+      } as unknown as Partial<import('../src/index.js').LogOptions>);
     } catch (error) {
-      assert.ok(error.includes('invalidOption1'), 'Error message includes invalidOption1');
-      assert.notOk(error.includes('invalidOption2'), 'Error message does not include invalidOption2');
+      const message = error instanceof Error ? error.message : String(error);
+      assert.ok(message.includes('invalidOption1'), 'Error message includes invalidOption1');
+      assert.notOk(message.includes('invalidOption2'), 'Error message does not include invalidOption2');
     }
   });
 });
