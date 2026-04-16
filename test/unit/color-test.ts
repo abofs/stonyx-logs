@@ -1,5 +1,5 @@
 import QUnit from 'qunit';
-import Color from '../../src/color.js';
+import Color, { type ChalkColorFn } from '../../src/color.js';
 
 const { module, test } = QUnit;
 
@@ -39,7 +39,7 @@ module('[Unit] Color', function () {
 
     test('sets and retrieves a chalk function', function (assert) {
       const color = new Color();
-      const chalkFn = color.getChalkInstance().bold.red;
+      const chalkFn = color.getChalkInstance().bold.red as unknown as ChalkColorFn;
       color.setLogColor('bold-red', chalkFn);
 
       const colorFn = color.getLogColor('bold-red');
@@ -87,7 +87,7 @@ module('[Unit] Color', function () {
     test('accepts a valid chalk function directly', function (assert) {
       const color = new Color();
       const chalk = color.getChalkInstance();
-      const boldBlue = chalk.bold.blue;
+      const boldBlue = chalk.bold.blue as unknown as ChalkColorFn;
 
       const fn = color.settingToChalkColorFunction(boldBlue);
       assert.strictEqual(typeof fn, 'function', 'returns a function');
@@ -119,19 +119,19 @@ module('[Unit] Color', function () {
       const color = new Color();
 
       assert.throws(
-        () => color.settingToChalkColorFunction(42),
+        () => color.settingToChalkColorFunction(42 as unknown as string),
         /Invalid chalk color function/,
         'throws on number input',
       );
 
       assert.throws(
-        () => color.settingToChalkColorFunction(true),
+        () => color.settingToChalkColorFunction(true as unknown as string),
         /Invalid chalk color function/,
         'throws on boolean input',
       );
 
       assert.throws(
-        () => color.settingToChalkColorFunction(null),
+        () => color.settingToChalkColorFunction(null as unknown as string),
         /Invalid chalk color function/,
         'throws on null input',
       );
@@ -141,7 +141,7 @@ module('[Unit] Color', function () {
       const color = new Color();
 
       assert.throws(
-        () => color.settingToChalkColorFunction(() => 42),
+        () => color.settingToChalkColorFunction((() => 42) as unknown as ChalkColorFn),
         /Invalid chalk color function/,
         'throws when function returns non-string',
       );

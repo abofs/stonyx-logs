@@ -6,10 +6,9 @@ import { hostname } from 'os';
 const { module, test } = QUnit;
 
 module('[Unit] Dynamic filenames', function (hooks) {
-  let consoleLogStub;
 
   hooks.beforeEach(function () {
-    consoleLogStub = sinon.stub(console, 'log');
+    sinon.stub(console, 'log');
     sinon.stub(console, 'dir');
   });
 
@@ -30,7 +29,7 @@ module('[Unit] Dynamic filenames', function (hooks) {
     test('returns {type}.log when template is undefined', function (assert) {
       const log = new Log();
 
-      assert.strictEqual(log.resolveFilename(undefined, 'warn'), 'warn.log');
+      assert.strictEqual(log.resolveFilename(undefined as unknown as string, 'warn'), 'warn.log');
     });
 
     test('resolves {type} variable', function (assert) {
@@ -142,11 +141,7 @@ module('[Unit] Dynamic filenames', function (hooks) {
       log.defineType('test', 'red', { filename: '{type}-{date}.log' });
 
       const resolveSpy = sinon.spy(log, 'resolveFilename');
-      const validateStub = sinon.stub(log, 'validateFileAndDirectory').resolves();
-
-      // stub fsp.writeFile to prevent actual file I/O
-      const writeFileStub = sinon.stub().resolves();
-      const appendFileStub = sinon.stub().resolves();
+      sinon.stub(log, 'validateFileAndDirectory').resolves();
 
       // we need to call writeToFile and check that resolveFilename was called
       return log.writeToFile('test', 'content', true).then(() => {

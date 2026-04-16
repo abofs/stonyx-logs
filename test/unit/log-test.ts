@@ -1,12 +1,12 @@
 import QUnit from 'qunit';
-import sinon from 'sinon';
+import sinon, { type SinonStub } from 'sinon';
 import Log from '../../src/index.js';
 
 const { module, test } = QUnit;
 
 module('[Unit] Log', function (hooks) {
-  let consoleLogStub;
-  let consoleDirStub;
+  let consoleLogStub: SinonStub;
+  let consoleDirStub: SinonStub;
 
   hooks.beforeEach(function () {
     consoleLogStub = sinon.stub(console, 'log');
@@ -93,28 +93,28 @@ module('[Unit] Log', function (hooks) {
   module('log methods', function () {
     test('info logs to console', function (assert) {
       const log = new Log();
-      log.info('hello world');
+      (log.info as (msg: string) => void)('hello world');
 
       assert.ok(consoleLogStub.calledOnce, 'console.log called once');
-      const loggedMessage = consoleLogStub.firstCall.args[0];
+      const loggedMessage = consoleLogStub.firstCall.args[0] as string;
       assert.ok(loggedMessage.includes('hello world'), 'message content is logged');
     });
 
     test('warn logs to console', function (assert) {
       const log = new Log();
-      log.warn('be careful');
+      (log.warn as (msg: string) => void)('be careful');
 
       assert.ok(consoleLogStub.calledOnce, 'console.log called once');
-      const loggedMessage = consoleLogStub.firstCall.args[0];
+      const loggedMessage = consoleLogStub.firstCall.args[0] as string;
       assert.ok(loggedMessage.includes('be careful'), 'message content is logged');
     });
 
     test('error logs to console', function (assert) {
       const log = new Log();
-      log.error('something broke');
+      (log.error as (msg: string) => void)('something broke');
 
       assert.ok(consoleLogStub.calledOnce, 'console.log called once');
-      const loggedMessage = consoleLogStub.firstCall.args[0];
+      const loggedMessage = consoleLogStub.firstCall.args[0] as string;
       assert.ok(loggedMessage.includes('something broke'), 'message content is logged');
     });
 
@@ -131,25 +131,25 @@ module('[Unit] Log', function (hooks) {
     test('log does not write to file when logToFile is false', function (assert) {
       const log = new Log();
       const writeStub = sinon.stub(log, 'writeToFile');
-      log.info('no file');
+      (log.info as (msg: string) => void)('no file');
 
       assert.ok(writeStub.notCalled, 'writeToFile not called');
     });
 
     test('log includes prefix when configured', function (assert) {
       const log = new Log({ prefix: '[PREFIX] ' });
-      log.info('test message');
+      (log.info as (msg: string) => void)('test message');
 
-      const loggedMessage = consoleLogStub.firstCall.args[0];
+      const loggedMessage = consoleLogStub.firstCall.args[0] as string;
       assert.ok(loggedMessage.includes('[PREFIX]'), 'prefix appears in output');
       assert.ok(loggedMessage.includes('test message'), 'message appears in output');
     });
 
     test('log includes suffix when configured', function (assert) {
       const log = new Log({ suffix: ' [END]' });
-      log.info('test message');
+      (log.info as (msg: string) => void)('test message');
 
-      const loggedMessage = consoleLogStub.firstCall.args[0];
+      const loggedMessage = consoleLogStub.firstCall.args[0] as string;
       assert.ok(loggedMessage.includes('[END]'), 'suffix appears in output');
     });
   });
@@ -188,7 +188,7 @@ module('[Unit] Log', function (hooks) {
       const log = new Log({ systemLogs: { test: 'red' } });
 
       assert.throws(
-        () => log.defineType('test', 'red', 'bad'),
+        () => log.defineType('test', 'red', 'bad' as unknown as Partial<import('../../src/index.js').LogOptions>),
         /The options param must be an object/,
         'throws descriptive error',
       );
@@ -198,7 +198,7 @@ module('[Unit] Log', function (hooks) {
       const log = new Log({ systemLogs: { test: 'red' } });
 
       assert.throws(
-        () => log.defineType('test', 'red', { invalidOption: true }),
+        () => log.defineType('test', 'red', { invalidOption: true } as unknown as Partial<import('../../src/index.js').LogOptions>),
         /invalidOption is not a valid configuration object/,
         'throws with invalid option name',
       );
