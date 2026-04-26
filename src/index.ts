@@ -41,6 +41,11 @@ export default class Log {
   // Dynamic convenience methods added at runtime
   [key: string]: unknown;
 
+  // Explicit declarations for system-defined log types so they remain callable under strict mode.
+  declare info: (content: string, logToFile?: boolean, overwrite?: boolean) => Promise<void>;
+  declare warn: (content: string, logToFile?: boolean, overwrite?: boolean) => Promise<void>;
+  declare error: (content: string, logToFile?: boolean, overwrite?: boolean) => Promise<void>;
+
   constructor(options: Partial<LogOptions> = {}) {
     const merged: LogOptions = {
       ...defaultOptions,
@@ -188,7 +193,7 @@ export default class Log {
 
   // attempts to create file and/or directory if they don't already exist
   async validateFileAndDirectory(path: string, targetLog: string): Promise<void> {
-    const errorMethod = (this.error as ((msg: string) => void) | undefined) || console.error;
+    const errorMethod = this.error;
 
     mkdirSync(path, { recursive: true });
 

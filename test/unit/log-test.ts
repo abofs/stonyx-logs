@@ -236,3 +236,18 @@ module('[Unit] Log', function (hooks) {
     });
   });
 });
+
+module('[Unit] Log convenience methods (system types)', function () {
+  test('info, warn, error are callable on a default-constructed Log', function (assert) {
+    const log = new Log();
+    assert.strictEqual(typeof log.info, 'function', 'log.info is a function');
+    assert.strictEqual(typeof log.warn, 'function', 'log.warn is a function');
+    assert.strictEqual(typeof log.error, 'function', 'log.error is a function');
+
+    void log.info('refined-test info');
+    void log.warn('refined-test warn');
+    void log.error('refined-test error');
+
+    assert.ok(true, 'direct calls compiled and executed');
+  });
+});
