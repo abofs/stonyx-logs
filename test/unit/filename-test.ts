@@ -1,5 +1,6 @@
 import QUnit from 'qunit';
 import sinon from 'sinon';
+import fs from 'fs';
 import Log from '../../src/index.js';
 import { hostname } from 'os';
 
@@ -136,37 +137,37 @@ module('[Unit] Dynamic filenames', function (hooks) {
   // --- writeToFile integration ---
 
   module('writeToFile uses resolved filename', function () {
-    test('writeToFile calls resolveFilename with type-specific template', function (assert) {
+    test('writeToFile calls resolveFilename with type-specific template', async function (assert) {
       const log = new Log({ systemLogs: { test: 'red' } });
       log.defineType('test', 'red', { filename: '{type}-{date}.log' });
 
       const resolveSpy = sinon.spy(log, 'resolveFilename');
       sinon.stub(log, 'validateFileAndDirectory').resolves();
 
-      // we need to call writeToFile and check that resolveFilename was called
-      return log.writeToFile('test', 'content', true).then(() => {
-        assert.ok(resolveSpy.calledOnce, 'resolveFilename called');
-        assert.strictEqual(resolveSpy.firstCall.args[0], '{type}-{date}.log', 'passes filename template');
-        assert.strictEqual(resolveSpy.firstCall.args[1], 'test', 'passes type');
-      }).catch(() => {
-        // validateFileAndDirectory may still cause a write, that's fine for this test
-        assert.ok(resolveSpy.calledOnce, 'resolveFilename called');
-      });
+      // stubbed so the unit test never writes into the real log directory
+      const writeStub = sinon.stub(fs.promises, 'writeFile').resolves();
+
+      await log.writeToFile('test', 'content', true);
+
+      assert.ok(resolveSpy.calledOnce, 'resolveFilename called');
+      assert.strictEqual(resolveSpy.firstCall.args[0], '{type}-{date}.log', 'passes filename template');
+      assert.strictEqual(resolveSpy.firstCall.args[1], 'test', 'passes type');
+      assert.ok(writeStub.calledOnce, 'payload write issued against the resolved target');
     });
 
-    test('writeToFile defaults to {type}.log when no filename configured', function (assert) {
+    test('writeToFile defaults to {type}.log when no filename configured', async function (assert) {
       const log = new Log();
 
       const resolveSpy = sinon.spy(log, 'resolveFilename');
       sinon.stub(log, 'validateFileAndDirectory').resolves();
 
-      return log.writeToFile('info', 'content', true).then(() => {
-        const result = resolveSpy.returnValues[0];
-        assert.strictEqual(result, 'info.log', 'resolved to default filename');
-      }).catch(() => {
-        const result = resolveSpy.returnValues[0];
-        assert.strictEqual(result, 'info.log', 'resolved to default filename');
-      });
+      // stubbed so the unit test never writes into the real log directory
+      const writeStub = sinon.stub(fs.promises, 'writeFile').resolves();
+
+      await log.writeToFile('info', 'content', true);
+
+      assert.strictEqual(resolveSpy.returnValues[0], 'info.log', 'resolved to default filename');
+      assert.strictEqual(writeStub.firstCall.args[0], `${log.options.path}info.log`, 'wrote to the default target');
     });
   });
 });
