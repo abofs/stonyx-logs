@@ -196,6 +196,20 @@ module('[Integration] Log Tests', () => {
 
       assert.strictEqual(recovered, 'second\n', 'the line landed in the recreated file');
       assert.strictEqual(mkdirSpy.callCount, 2, 'mkdir called exactly twice across the test');
+
+      /*
+       * Two writes alone give mkdir === 2 for a cacheless implementation too, so the count above
+       * carries no cache signal on its own. A third write against the now-warm cache adds one: a
+       * cacheless implementation reaches 3 here and fails.
+       */
+      await log.writeToFile('test', 'third\n', false);
+
+      assert.strictEqual(mkdirSpy.callCount, 2, 'the warm cache absorbs the third write');
+      assert.strictEqual(
+        await fsp.readFile(`${path}test.log`, 'utf8'),
+        'second\nthird\n',
+        'the third line appended without a further mkdir',
+      );
     } finally {
       mkdirSpy.restore();
       await removeDirectory(path, assert);

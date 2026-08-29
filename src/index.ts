@@ -4,6 +4,9 @@ import { hostname } from 'os';
 import projectPath from 'path';
 import Color, { type ColorSetting, type ChalkColorFn } from './color.js';
 
+// closed severity ladder from the framework logging schema - `critical` is deliberately absent
+export type Severity = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+
 export interface LogOptions {
   logToFileByDefault: boolean;
   logTimestamp: boolean;
@@ -41,7 +44,7 @@ export default class Log {
   // resolved directory -> in-flight or settled mkdir; instance-scoped so it cannot outlive its directory
   directoryCache: Map<string, Promise<void>> = new Map();
 
-  // resolved target -> consecutive write failures, used to dedupe the operator notice
+  // resolved directory -> consecutive write failures, used to dedupe the operator notice
   writeFailures: Map<string, number> = new Map();
 
   // Dynamic convenience methods added at runtime
@@ -132,7 +135,7 @@ export default class Log {
     return this.color.getChalkInstance();
   }
 
-  // logs to console, and conditionally to file
+  // logs to console, and conditionally to file; propagates any writeToFile rejection to the caller
   async log(content: string, type: string, logToFile: boolean, overwrite: boolean): Promise<void> {
     const logTimestamp = this.getOptionForType(type, 'logTimestamp') as boolean;
     const timestamp = `[${new Date().toLocaleString('en-US')}]`;
@@ -151,7 +154,7 @@ export default class Log {
     await this.writeToFile(type, `${timestamp} ${content}\n`, overwrite);
   }
 
-  // direct hardcoded debug method (log to file functionality is limited)
+  // direct hardcoded debug method (limited file logging); propagates any writeToFile rejection
   async debug(content: unknown, logToFile = false, overwrite = true): Promise<void> {
     console.dir(content, { depth: 6 }); // eslint-disable-line no-console
 
@@ -160,6 +163,17 @@ export default class Log {
     await this.writeToFile('debug', JSON.stringify(content, null, 2), overwrite);
   }
 
+  /*
+   * Writes `content` to the resolved target for `type`, creating the target's directory on first
+   * use for that directory.
+   *
+   * The returned promise rejecting with the underlying `NodeJS.ErrnoException` (with `err.code`
+   * preserved) is the sole failure signal - callers that care must handle it. The structured
+   * stderr notice emitted alongside a failure is informational only and is deduped per episode.
+   *
+   * On `ENOENT`, `EACCES`, `EPERM` or `EROFS` the cached directory entry is dropped and the write
+   * is retried exactly once; every other code rejects on the first attempt without a retry.
+   */
   async writeToFile(type: string, content: string, overwrite: boolean): Promise<void> {
     const path = this.getOptionForType(type, 'path') as string;
     const filenameTemplate = this.getOptionForType(type, 'filename') as string;
@@ -181,32 +195,70 @@ export default class Log {
     } catch (error) {
       const { code, syscall } = error as NodeJS.ErrnoException;
 
-      this.noticeWriteResult(targetLog, { targetLog, path, syscall, code, cached });
+      this.noticeWriteResult(path, targetLog, {
+        targetLog,
+        path,
+        syscall,
+        code,
+        cached,
+      });
 
       throw error;
     }
 
-    this.noticeWriteResult(targetLog, null);
+    this.noticeWriteResult(path, targetLog, null);
   }
 
-  // One structured stderr notice per failure episode: an emit on the first failure, silence while
-  // it keeps failing, one recovery emit on the next success. A null payload records a success.
-  noticeWriteResult(targetLog: string, payload: Record<string, unknown> | null): void {
-    const failures = this.writeFailures.get(targetLog) ?? 0;
+  /*
+   * One structured stderr notice per failure episode: an emit on the first failure, silence while
+   * it keeps failing, one recovery emit on the next success. A null payload records a success.
+   *
+   * Keyed on the directory rather than the resolved target, matching `directoryCache`: every code
+   * in the retry allowlist is a directory-level condition, so keying on the target would strand an
+   * un-reaped entry - and silently drop its suppressed count - whenever a `{date}` template rotates
+   * away from a still-failing filename.
+   */
+  noticeWriteResult(path: string, targetLog: string, payload: Record<string, unknown> | null): void {
+    const failures = this.writeFailures.get(path) ?? 0;
 
     if (payload) {
-      this.writeFailures.set(targetLog, failures + 1);
-      if (!failures) this.emitNotice('error', 'log-write-failed', { ...payload, suppressedCount: 0 });
+      this.writeFailures.set(path, failures + 1);
+
+      if (!failures) {
+        this.emitNotice('error', 'log-write-failed', {
+          ...payload,
+          suppressedCount: 0,
+        });
+      }
     } else if (failures) {
-      this.writeFailures.delete(targetLog);
-      this.emitNotice('warn', 'log-write-recovered', { targetLog, suppressedCount: failures - 1 });
+      this.writeFailures.delete(path);
+
+      this.emitNotice('warn', 'log-write-recovered', {
+        targetLog,
+        path,
+        suppressedCount: failures - 1,
+      });
     }
   }
 
-  // the write-failure path must never re-enter this logger, so notices go straight to stderr
-  emitNotice(severity: string, event: string, payload: Record<string, unknown>): void {
+  /*
+   * The write-failure path must never re-enter this logger, so notices go straight to stderr as a
+   * single JSONL record. Field order is the canonical one mandated by the framework logging
+   * schema, with the optional `schemaVersion` last.
+   */
+  emitNotice(severity: Severity, event: string, payload: Record<string, unknown>): void {
     const ts = new Date().toISOString();
-    console.error(JSON.stringify({ ts, schemaVersion: 1, surface: 'stonyx-logs', sessionKey: null, project: null, severity, event, payload }));
+
+    console.error(JSON.stringify({
+      ts,
+      surface: 'stonyx-logs',
+      sessionKey: null,
+      project: null,
+      severity,
+      event,
+      payload,
+      schemaVersion: 1,
+    }));
   }
 
   // resolves template variables in a filename string
@@ -234,9 +286,11 @@ export default class Log {
     return resolved.replace(/\.\./g, '').replace(/[/\\]/g, '');
   }
 
-  // Ensures the target's directory exists. Both write paths auto-create the file itself, so no
-  // bootstrap write is needed. `targetLog` is unused but retained for signature compatibility:
-  // resolveFilename strips separators, so the only cached invariant is the directory.
+  /*
+   * Ensures the target's directory exists. Both write paths auto-create the file itself, so no
+   * bootstrap write is needed. `targetLog` is unused but retained for signature compatibility:
+   * resolveFilename strips separators, so the only cached invariant is the directory.
+   */
   async validateFileAndDirectory(path: string, targetLog: string): Promise<void> {
     let pending = this.directoryCache.get(path);
 

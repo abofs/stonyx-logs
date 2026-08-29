@@ -221,6 +221,39 @@ qunitModule('[Unit] write path race + mkdir caching', function (hooks) {
     assert.strictEqual(vfs.content(target(log, 'info.log')), 'A\nB\n', 'no bootstrap write, no dropped line');
   });
 
+  /*
+   * Regression guard for the flag-before-await ordering bug (implementation note 5): the cache must
+   * hold the in-flight mkdir *promise*, never a boolean/Set entry set before the await.
+   *
+   * The content assertions above cannot see that bug - under a Set flag the LIFO drain still pops
+   * mkdir first, and the ENOENT self-heal retry rescues any append that did land early, so the
+   * final bytes are identical either way. This asserts the invariant directly instead: the mkdir is
+   * held pending (its settle callback is parked in the virtual queue and never drained here), and
+   * every concurrent writer must still be blocked on it, with zero appends attempted.
+   */
+  test('assertion 17 - concurrent first-writes stay blocked until the pending mkdir settles', async function (assert) {
+    const log = new Log({ path: 'virtual-logs' });
+    const writes = [1, 2, 3].map(n => log.writeToFile('info', `LINE${n}\n`, false));
+
+    // let every writer run to its first real suspension point without settling the pending mkdir
+    for (let hop = 0; hop < 25; hop++) await tick(0);
+
+    assert.strictEqual(vfs.mkdir.callCount, 1, 'exactly one mkdir is in flight');
+    assert.strictEqual(vfs.appendFile.callCount, 0, 'no append is attempted while mkdir is pending');
+    assert.strictEqual(vfs.writeFile.callCount, 0, 'no write is attempted while mkdir is pending');
+    assert.strictEqual(vfs.queue.length, 1, 'the pending mkdir is the only queued fs operation');
+    assert.notOk(vfs.dirs.has(log.options.path), 'precondition: the directory does not exist yet');
+
+    await settle(vfs, writes, 'lifo');
+
+    const content = vfs.content(target(log, 'info.log'));
+
+    assert.ok(content.includes('LINE1'), `LINE1 retained (content: ${JSON.stringify(content)})`);
+    assert.ok(content.includes('LINE2'), `LINE2 retained (content: ${JSON.stringify(content)})`);
+    assert.ok(content.includes('LINE3'), `LINE3 retained (content: ${JSON.stringify(content)})`);
+    assert.strictEqual(vfs.mkdir.callCount, 1, 'no writer needed a self-heal retry');
+  });
+
   // --- Group B: mkdir caching ---
 
   test('assertions 4 + 5 - repeat writes call mkdir once and never skip the payload write', async function (assert) {
@@ -257,7 +290,13 @@ qunitModule('[Unit] write path race + mkdir caching', function (hooks) {
   });
 
   test('assertion 8 - two targets in one directory share a single mkdir', async function (assert) {
-    const log = new Log({ path: 'virtual-logs', systemLogs: { alpha: 'red', beta: 'blue' }});
+    const log = new Log({
+      path: 'virtual-logs',
+      systemLogs: {
+        alpha: 'red',
+        beta: 'blue',
+      },
+    });
 
     log.defineType('alpha', 'red', { filename: 'alpha-{type}.log' });
     log.defineType('beta', 'blue', { filename: 'beta-{type}.log' });
@@ -271,8 +310,14 @@ qunitModule('[Unit] write path race + mkdir caching', function (hooks) {
   });
 
   test('assertion 9 - {date} rollover writes zero lines into the previous day file', async function (assert) {
-    const clock = sinon.useFakeTimers({ toFake: ['Date'], now: new Date('2026-08-29T23:59:00Z').getTime() });
-    const log = new Log({ path: 'virtual-logs', filename: '{date}.log' });
+    const clock = sinon.useFakeTimers({
+      toFake: ['Date'],
+      now: new Date('2026-08-29T23:59:00Z').getTime(),
+    });
+    const log = new Log({
+      path: 'virtual-logs',
+      filename: '{date}.log',
+    });
 
     const first = log.resolveFilename('{date}.log', 'info');
 
@@ -314,14 +359,22 @@ qunitModule('[Unit] write path race + mkdir caching', function (hooks) {
 
     await settle(vfs, [log.writeToFile('info', 'PAYLOAD\n', true)]);
 
+    /*
+     * Content equality alone cannot see a double write: two writeFile calls with identical payload
+     * under the truncating 'w' flag are byte-indistinguishable from one. The call count can.
+     */
     assert.strictEqual(vfs.content(target(log, 'info.log')), 'PAYLOAD\n', 'no empty bootstrap, no double write');
+    assert.strictEqual(vfs.writeFile.callCount, 1, 'payload written exactly once');
     assert.strictEqual(vfs.appendFile.callCount, 0, 'overwrite path never appends');
   });
 
   // --- Group D: failure path (#29) ---
 
   test('assertion 13 - one failed write emits at most two console lines', async function (assert) {
-    const log = new Log({ path: 'virtual-logs', logToFileByDefault: true });
+    const log = new Log({
+      path: 'virtual-logs',
+      logToFileByDefault: true,
+    });
     const writeSpy = sinon.spy(log, 'writeToFile');
 
     vfs.failMkdir('EACCES');
@@ -343,7 +396,11 @@ qunitModule('[Unit] write path race + mkdir caching', function (hooks) {
 
     process.on('unhandledRejection', onUnhandled);
 
-    const log = new Log({ path: 'virtual-logs', logToFileByDefault: true, systemLogs: { test: 'red' }});
+    const log = new Log({
+      path: 'virtual-logs',
+      logToFileByDefault: true,
+      systemLogs: { test: 'red' },
+    });
 
     assert.strictEqual(log.error, undefined, 'precondition: this.error is undefined');
 
@@ -372,6 +429,14 @@ qunitModule('[Unit] write path race + mkdir caching', function (hooks) {
       const [result] = await settle(vfs, [log.writeToFile('info', `f${i}\n`, false)]);
 
       assert.strictEqual(result.status, 'rejected', `write ${i} rejected`);
+
+      /*
+       * Pins the "retry exactly once" bound that mitigates refinement risk (b). Each failed write
+       * costs the initial attempt plus one retry and nothing more, so the cumulative count grows
+       * by exactly 2 per write - a wider retry ladder makes this go red instead of hiding behind
+       * the deduped notice.
+       */
+      assert.strictEqual(vfs.mkdir.callCount, (i + 1) * 2, `write ${i} retried exactly once`);
     }
 
     assert.strictEqual(consoleError.callCount, 1, 'four consecutive failures produce exactly one emit');
