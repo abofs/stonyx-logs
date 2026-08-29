@@ -51,8 +51,50 @@ export default class Log {
   [key: string]: unknown;
 
   // Explicit declarations for system-defined log types so they remain callable under strict mode.
+
+  /**
+   * Logs `content` to the console in the `info` color, and to file when `logToFile` is true.
+   *
+   * **A failed file write rejects the returned promise, and that rejection is terminal - do not retry
+   * it.** `ENOENT`, `EACCES`, `EPERM` and `EROFS` have already been retried once internally by the
+   * time one reaches you; every other code (`EISDIR`, `ENOTDIR`, `ENOSPC`, `EMFILE`, ...) is never
+   * retried, because a retry cannot help it. Handle the first rejection by disabling file logging or
+   * backing off - never by writing again. The rejection value is the underlying
+   * `NodeJS.ErrnoException` with `err.code` preserved, and leaving it unhandled terminates the
+   * process.
+   *
+   * @see https://github.com/abofs/stonyx-logs#handling-write-failures
+   */
   declare info: (content: string, logToFile?: boolean, overwrite?: boolean) => Promise<void>;
+
+  /**
+   * Logs `content` to the console in the `warn` color, and to file when `logToFile` is true.
+   *
+   * **A failed file write rejects the returned promise, and that rejection is terminal - do not retry
+   * it.** `ENOENT`, `EACCES`, `EPERM` and `EROFS` have already been retried once internally by the
+   * time one reaches you; every other code (`EISDIR`, `ENOTDIR`, `ENOSPC`, `EMFILE`, ...) is never
+   * retried, because a retry cannot help it. Handle the first rejection by disabling file logging or
+   * backing off - never by writing again. The rejection value is the underlying
+   * `NodeJS.ErrnoException` with `err.code` preserved, and leaving it unhandled terminates the
+   * process.
+   *
+   * @see https://github.com/abofs/stonyx-logs#handling-write-failures
+   */
   declare warn: (content: string, logToFile?: boolean, overwrite?: boolean) => Promise<void>;
+
+  /**
+   * Logs `content` to the console in the `error` color, and to file when `logToFile` is true.
+   *
+   * **A failed file write rejects the returned promise, and that rejection is terminal - do not retry
+   * it.** `ENOENT`, `EACCES`, `EPERM` and `EROFS` have already been retried once internally by the
+   * time one reaches you; every other code (`EISDIR`, `ENOTDIR`, `ENOSPC`, `EMFILE`, ...) is never
+   * retried, because a retry cannot help it. Handle the first rejection by disabling file logging or
+   * backing off - never by writing again. The rejection value is the underlying
+   * `NodeJS.ErrnoException` with `err.code` preserved, and leaving it unhandled terminates the
+   * process.
+   *
+   * @see https://github.com/abofs/stonyx-logs#handling-write-failures
+   */
   declare error: (content: string, logToFile?: boolean, overwrite?: boolean) => Promise<void>;
 
   constructor(options: Partial<LogOptions> = {}) {
@@ -111,7 +153,21 @@ export default class Log {
       this.logAction(type, content, logToFile, overwrite);
   }
 
-  // validates params and sets configuration-based defaults for logging
+  /**
+   * Validates params and applies configuration-based defaults for logging. Every convenience method
+   * created by `defineType` - including `info`, `warn` and `error` - routes through here. Note that
+   * `debug` does not: it is a direct method that never consults `logToFileByDefault`.
+   *
+   * **A failed file write rejects the returned promise, and that rejection is terminal - do not retry
+   * it.** `ENOENT`, `EACCES`, `EPERM` and `EROFS` have already been retried once internally by the
+   * time one reaches you; every other code (`EISDIR`, `ENOTDIR`, `ENOSPC`, `EMFILE`, ...) is never
+   * retried, because a retry cannot help it. Handle the first rejection by disabling file logging or
+   * backing off - never by writing again. The rejection value is the underlying
+   * `NodeJS.ErrnoException` with `err.code` preserved, and leaving it unhandled terminates the
+   * process.
+   *
+   * @see https://github.com/abofs/stonyx-logs#handling-write-failures
+   */
   logAction(type: string, content: string, logToFile?: boolean, overwrite?: boolean): Promise<void> {
     // set logToFile default based on class options when not set
     if (logToFile === undefined) logToFile = this.getOptionForType(type, 'logToFileByDefault') as boolean;
@@ -135,7 +191,13 @@ export default class Log {
     return this.color.getChalkInstance();
   }
 
-  // logs to console, and conditionally to file; propagates any writeToFile rejection to the caller
+  /**
+   * Logs to console, and conditionally to file.
+   *
+   * When `logToFile` is true this awaits `writeToFile` and propagates its rejection unchanged, so
+   * the caller receives the underlying `NodeJS.ErrnoException`. Callers must handle it: see the
+   * `writeToFile` contract below.
+   */
   async log(content: string, type: string, logToFile: boolean, overwrite: boolean): Promise<void> {
     const logTimestamp = this.getOptionForType(type, 'logTimestamp') as boolean;
     const timestamp = `[${new Date().toLocaleString('en-US')}]`;
@@ -154,7 +216,14 @@ export default class Log {
     await this.writeToFile(type, `${timestamp} ${content}\n`, overwrite);
   }
 
-  // direct hardcoded debug method (limited file logging); propagates any writeToFile rejection
+  /**
+   * Direct hardcoded debug method (limited file logging). Unlike the `defineType` convenience
+   * methods this does not route through `logAction`, so it never consults `logToFileByDefault` and
+   * only writes to file when `logToFile` is passed explicitly.
+   *
+   * When `logToFile` is true this awaits `writeToFile` and propagates its rejection unchanged, on
+   * exactly the same contract as `log` - see `writeToFile` below.
+   */
   async debug(content: unknown, logToFile = false, overwrite = true): Promise<void> {
     console.dir(content, { depth: 6 }); // eslint-disable-line no-console
 
@@ -163,7 +232,7 @@ export default class Log {
     await this.writeToFile('debug', JSON.stringify(content, null, 2), overwrite);
   }
 
-  /*
+  /**
    * Writes `content` to the resolved target for `type`, creating the target's directory on first
    * use for that directory.
    *
@@ -172,7 +241,15 @@ export default class Log {
    * stderr notice emitted alongside a failure is informational only and is deduped per episode.
    *
    * On `ENOENT`, `EACCES`, `EPERM` or `EROFS` the cached directory entry is dropped and the write
-   * is retried exactly once; every other code rejects on the first attempt without a retry.
+   * is retried exactly once. Other codes do not themselves trigger a retry; the decision is keyed
+   * on the first attempt's code.
+   *
+   * A rejection is terminal either way. For those four codes the self-heal has already run and
+   * failed by the time one escapes; the rest were never retryable, so repeating the call cannot
+   * change the outcome. Consumers must not layer their own retry on top - doing so either races the
+   * internal one or repeats a call that already cannot succeed, and delays the disable/back-off the
+   * rejection exists to trigger. The correct response to the first rejection is to stop writing.
+   * See README "Handling write failures".
    */
   async writeToFile(type: string, content: string, overwrite: boolean): Promise<void> {
     const path = this.getOptionForType(type, 'path') as string;
@@ -209,7 +286,7 @@ export default class Log {
     this.noticeWriteResult(path, targetLog, null);
   }
 
-  /*
+  /**
    * One structured stderr notice per failure episode: an emit on the first failure, silence while
    * it keeps failing, one recovery emit on the next success. A null payload records a success.
    *
@@ -241,10 +318,11 @@ export default class Log {
     }
   }
 
-  /*
-   * The write-failure path must never re-enter this logger, so notices go straight to stderr as a
-   * single JSONL record. Field order is the canonical one mandated by the framework logging
-   * schema, with the optional `schemaVersion` last.
+  /**
+   * The write-failure path must never re-enter this logger, so notices go straight out through
+   * `console.error` as a single JSONL record, bypassing all of this package's formatting. Field
+   * order is the canonical one mandated by the framework logging schema, with the optional
+   * `schemaVersion` last.
    */
   emitNotice(severity: Severity, event: string, payload: Record<string, unknown>): void {
     const ts = new Date().toISOString();
@@ -286,7 +364,7 @@ export default class Log {
     return resolved.replace(/\.\./g, '').replace(/[/\\]/g, '');
   }
 
-  /*
+  /**
    * Ensures the target's directory exists. Both write paths auto-create the file itself, so no
    * bootstrap write is needed. `targetLog` is unused but retained for signature compatibility:
    * resolveFilename strips separators, so the only cached invariant is the directory.

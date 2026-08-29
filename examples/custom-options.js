@@ -13,6 +13,20 @@ const log = new Log({
   suffix: '\n=============================================================== \n',
 });
 
-log.info('Info: sample application has started');
-log.warn('Warning: this is just a sample');
-log.error('Error: no application logic detected');
+/*
+ * logToFileByDefault makes every call below a file write, so every call returns a promise that can
+ * reject. The rejection is the only failure signal and is terminal, so the first one should disable
+ * file logging rather than trigger another attempt.
+ * See https://github.com/abofs/stonyx-logs#handling-write-failures
+ */
+async function runSample() {
+  try {
+    await log.info('Info: sample application has started');
+    await log.warn('Warning: this is just a sample');
+    await log.error('Error: no application logic detected');
+  } catch (error) {
+    console.error(`file logging disabled after ${error.code}`);
+  }
+}
+
+runSample();
