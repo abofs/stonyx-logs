@@ -1,5 +1,6 @@
 import Qunit from 'qunit';
-import { promises as fsp } from 'fs';
+import sinon from 'sinon';
+import fs, { promises as fsp } from 'fs';
 import Log from '../src/index.js';
 
 const { module, test } = Qunit;
@@ -166,6 +167,39 @@ module('[Integration] Log Tests', () => {
     assert.ok(logFileExists, 'bar log file exists');
 
     await removeDirectory(barPath, assert); // clean up directory
+  });
+
+  test('Log directory removed at runtime is recreated on the next write', async assert => {
+    const log = new Log({
+      path: 'heal-logs',
+      systemLogs: { test: 'green' },
+    });
+    const { path } = log.options;
+    const mkdirSpy = sinon.spy(fs.promises, 'mkdir');
+
+    try {
+      await removeDirectory(path, assert);
+
+      // first write warms the instance directory cache
+      await log.writeToFile('test', 'first\n', false);
+
+      assert.ok(await targetExists(`${path}test.log`), 'log file exists after the first write');
+
+      // remove the directory underneath the warm cache
+      await removeDirectory(path, assert);
+
+      assert.notOk(await targetExists(path), 'log directory removed at runtime');
+
+      await log.writeToFile('test', 'second\n', false);
+
+      const recovered = await fsp.readFile(`${path}test.log`, 'utf8');
+
+      assert.strictEqual(recovered, 'second\n', 'the line landed in the recreated file');
+      assert.strictEqual(mkdirSpy.callCount, 2, 'mkdir called exactly twice across the test');
+    } finally {
+      mkdirSpy.restore();
+      await removeDirectory(path, assert);
+    }
   });
 
   test('App crashes with descriptive error if user passes a non-object param to for options', async assert => {
