@@ -1,4 +1,4 @@
-import { mkdirSync, promises as fsp } from 'fs';
+import { promises as fsp } from 'fs';
 import { fileURLToPath } from 'url';
 import { hostname } from 'os';
 import projectPath from 'path';
@@ -37,6 +37,12 @@ export default class Log {
   options: LogOptions;
   color: Color;
   typeOptions: Record<string, Partial<LogOptions>> = {};
+
+  // resolved directory -> in-flight or settled mkdir; instance-scoped so it cannot outlive its directory
+  directoryCache: Map<string, Promise<void>> = new Map();
+
+  // resolved target -> consecutive write failures, used to dedupe the operator notice
+  writeFailures: Map<string, number> = new Map();
 
   // Dynamic convenience methods added at runtime
   [key: string]: unknown;
@@ -157,13 +163,50 @@ export default class Log {
   async writeToFile(type: string, content: string, overwrite: boolean): Promise<void> {
     const path = this.getOptionForType(type, 'path') as string;
     const filenameTemplate = this.getOptionForType(type, 'filename') as string;
-    const resolvedName = this.resolveFilename(filenameTemplate, type);
-    const targetLog = `${path}${resolvedName}`;
-    await this.validateFileAndDirectory(path, targetLog);
+    const targetLog = `${path}${this.resolveFilename(filenameTemplate, type)}`;
+    const cached = this.directoryCache.has(path);
+    const attempt = async (): Promise<void> => {
+      await this.validateFileAndDirectory(path, targetLog);
+      await (overwrite ? fsp.writeFile : fsp.appendFile)(targetLog, content);
+    };
 
-    const fileAction = overwrite ? fsp.writeFile : fsp.appendFile;
+    try {
+      await attempt().catch(async (error: NodeJS.ErrnoException) => {
+        // a warm cache can outlive its directory, so drop the entry and retry exactly once
+        if (!['ENOENT', 'EACCES', 'EPERM', 'EROFS'].includes(error?.code as string)) throw error;
+        this.directoryCache.delete(path);
 
-    await fileAction(targetLog, content);
+        return attempt();
+      });
+    } catch (error) {
+      const { code, syscall } = error as NodeJS.ErrnoException;
+
+      this.noticeWriteResult(targetLog, { targetLog, path, syscall, code, cached });
+
+      throw error;
+    }
+
+    this.noticeWriteResult(targetLog, null);
+  }
+
+  // One structured stderr notice per failure episode: an emit on the first failure, silence while
+  // it keeps failing, one recovery emit on the next success. A null payload records a success.
+  noticeWriteResult(targetLog: string, payload: Record<string, unknown> | null): void {
+    const failures = this.writeFailures.get(targetLog) ?? 0;
+
+    if (payload) {
+      this.writeFailures.set(targetLog, failures + 1);
+      if (!failures) this.emitNotice('error', 'log-write-failed', { ...payload, suppressedCount: 0 });
+    } else if (failures) {
+      this.writeFailures.delete(targetLog);
+      this.emitNotice('warn', 'log-write-recovered', { targetLog, suppressedCount: failures - 1 });
+    }
+  }
+
+  // the write-failure path must never re-enter this logger, so notices go straight to stderr
+  emitNotice(severity: string, event: string, payload: Record<string, unknown>): void {
+    const ts = new Date().toISOString();
+    console.error(JSON.stringify({ ts, schemaVersion: 1, surface: 'stonyx-logs', sessionKey: null, project: null, severity, event, payload })); // eslint-disable-line no-console
   }
 
   // resolves template variables in a filename string
@@ -191,18 +234,22 @@ export default class Log {
     return resolved.replace(/\.\./g, '').replace(/[/\\]/g, '');
   }
 
-  // attempts to create file and/or directory if they don't already exist
+  // Ensures the target's directory exists. Both write paths auto-create the file itself, so no
+  // bootstrap write is needed. `targetLog` is unused but retained for signature compatibility:
+  // resolveFilename strips separators, so the only cached invariant is the directory.
   async validateFileAndDirectory(path: string, targetLog: string): Promise<void> {
-    const errorMethod = this.error;
+    let pending = this.directoryCache.get(path);
 
-    mkdirSync(path, { recursive: true });
+    if (!pending) {
+      // cache the promise before awaiting: a flag here would let a concurrent write append first
+      pending = fsp.mkdir(path, { recursive: true }).then(() => undefined);
+      this.directoryCache.set(path, pending);
 
-    await fsp.access(targetLog).catch(() => {
-      fsp.writeFile(targetLog, '').catch(() => {
-        errorMethod(`Failed to create log file: ${targetLog}.`
-          + '\n Verify that the application runner has write permissions');
-      });
-    });
+      // never keep a poisoned entry - the next write retries from scratch
+      pending.catch(() => this.directoryCache.delete(path));
+    }
+
+    return pending;
   }
 
   // method to conditionally sanitize user configuration input
