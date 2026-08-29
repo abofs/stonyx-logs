@@ -206,7 +206,7 @@ export default class Log {
   // the write-failure path must never re-enter this logger, so notices go straight to stderr
   emitNotice(severity: string, event: string, payload: Record<string, unknown>): void {
     const ts = new Date().toISOString();
-    console.error(JSON.stringify({ ts, schemaVersion: 1, surface: 'stonyx-logs', sessionKey: null, project: null, severity, event, payload })); // eslint-disable-line no-console
+    console.error(JSON.stringify({ ts, schemaVersion: 1, surface: 'stonyx-logs', sessionKey: null, project: null, severity, event, payload }));
   }
 
   // resolves template variables in a filename string
