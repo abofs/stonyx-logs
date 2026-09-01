@@ -57,11 +57,7 @@ const log = new Log();
 
 log.info('Info: sample application has started');
 log.warn('Warning: this is just a sample');
-
-// logs to logs/error.log; a failed write rejects, and handling that rejection is required
-// see "Handling write failures" below
-log.error('Error: no application logic detected', true)
-  .catch(err => { /* err.code is the underlying fs error code, e.g. 'EACCES' */ });
+log.error('Error: no application logic detected', true); // logs to logs/error.log file
 ```
 
 Easily define your own logging mechanism and color-coding preference:
@@ -95,15 +91,8 @@ const log = new Log({
   suffix: '\n=============================================================== \n',
 });
 
-log.info('Info: sample application has started')
-  .catch(err => { /* see "Handling write failures" */ });
+log.info('Info: sample application has started');
 ```
-
-> **Caveat:** with `logToFileByDefault: true`, every log call *except* [`debug()`](#the-debug-method)
-> becomes a file write, and therefore returns a promise that can reject. A failing log directory turns
-> an unhandled `log.info()` into a process-terminating rejection. See
-> [handling write failures](#handling-write-failures).
-
 ![](https://github.com/abofs/stonyx-logs/raw/main/media/examples/custom-options.jpg)
 
 
@@ -118,7 +107,6 @@ const log = new Log({ additionalLogs: { question: 'green' } });
 log.defineType('query', log.chalk().black.bgGreen);
 
 log.question('What will a fully custom chalk color function look like?');
-// second argument writes to file, so this can reject -- see "Handling write failures"
 await log.query('This is what a custom chalk color setting looks like', true);
 ```
 ![](https://github.com/abofs/stonyx-logs/raw/main/media/examples/additional-logs.jpg)
@@ -165,20 +153,13 @@ These methods can then be called in your application with [logging parameters](#
 
 Color settings are handled by determining whether your input is a color name or a hex value (prefixed with **#**). For example, passing `red` as a color setting will utilize `chalk.red`, while passing `#ff0000` would use `chalk.hex('#ff0000')` instead. A [list of available colors](https://github.com/chalk/chalk#colors) can be found in chalks' documentation.
 
-Additionally, these methods return a promise when `logToFile` is true, allowing you to use them with `await` in an async method, or to append `then()`, `catch()` or `finally()`.
-
-When `logToFile` is true that promise **can reject**, and handling the rejection is **required** --
-see [handling write failures](#handling-write-failures) for the full contract.
+Additionally, these methods return a promise when `logToFile` is true, allowing you use them with `await` in an async method, or append `then(), catch(), or finally()` for more advanced callback usage.
 
 ```js
 async method() {
-  try {
-    await log.error('error message', true);
+  await log.error('error message', true);
 
-    // do something after logs/error.log (default) is created
-  } catch (err) {
-    // err.code is the underlying fs error code, e.g. 'EACCES'
-  }
+  // do something after logs/error.log (default) is created
 }
 ```
 
@@ -196,11 +177,6 @@ JSON.stringify(content, null, 2);
 
 We believe that when wanting to output complicated objects or debug **typescript** applications, there are better methods than utilizing this **Log** package. But for anyone who's fully incorporated **Log** into their project, this function offers some convenience.
 
-`debug(content, logToFile)` writes to file on the same contract as every other log type -- a failed
-write rejects with the underlying `fs` error and must be handled -- with one difference: `debug()`
-ignores [`logToFileByDefault`](#configuration), so it writes to file only when you pass `true`.
-See [handling write failures](#handling-write-failures).
-
 ### Logging Parameters
 
 ```js
@@ -210,161 +186,10 @@ log.error('error message', true, false); // content, logToFile, overwrite
 | Parameter | Type | Default | Description |
 | :---: | :---: | :---: | :--- |
 | `content` | **String** | | Content of log that will output on your console. |
-| `logToFile` | **Boolean** | *false* | Option to log content to file. When true, the call returns a promise that rejects if the write fails -- see [handling write failures](#handling-write-failures). |
+| `logToFile` | **Boolean** | *false* | Option to log content to file. |
 | `overwrite` | **Boolean** | *false <br> (true on debug())* | Option to overwrite log file, rather than append to it. This option is redundant if logToFile is false.  |
 
 **logToFile** will log to *<project-root>/logs* unless [configured](#configuration) differently during instantiation. <br>
-
-### Handling Write Failures
-
-Any call that writes to a file returns a promise that **rejects when the write fails**. That covers
-`log.error(content, true)`, `log.debug(content, true)`, and every log call except `debug()` when
-[`logToFileByDefault`](#configuration) is `true` -- `debug()` is a direct method that never consults
-`logToFileByDefault`, so it only writes to file when you pass `true` explicitly.
-
-That rejection is the only actionable failure signal, so every file-writing call must be awaited
-inside `try`/`catch`, or have `.catch()` attached. The console line is written *before* the file
-write is attempted, so a rejection means only the file copy was lost -- do not re-log the message in
-your handler, or it prints twice.
-
-> **A rejection is terminal. Do not retry it.**
->
-> For the recoverable directory-level codes -- `ENOENT`, `EACCES`, `EPERM`, `EROFS` -- **Log** has
-> already retried internally by the time the rejection reaches you (see
-> [self-healing retry](#self-healing-retry) below), so that retry ran and failed too. Every other
-> code -- `EISDIR`, `ENOTDIR` and `ENOSPC` among them -- is not itself retried, because a retry
-> cannot help it. Either way a consumer-side retry layer races the internal self-heal or repeats a call that
-> already cannot succeed, and only delays the disable or back-off that your error path exists to
-> trigger.
->
-> Treat the **first** rejection as the signal to disable file logging or back off, and do not attempt
-> the write again straight away. If you do want file logging to come back without a restart, re-arm
-> on a timer -- see [recovering after a latch](#recovering-after-a-latch).
-
-#### What the Promise Rejects With
-
-The rejection value is the underlying Node `fs` error - a `NodeJS.ErrnoException` passed through
-unmodified, with `err.code`, `err.syscall`, `err.errno` and `err.path` all preserved.
-
-```js
-try {
-  await log.error('error message', true);
-} catch (err) {
-  // err.code is the underlying fs error code, e.g. 'EACCES'
-  // err.syscall is the failing call, e.g. 'mkdir' or 'open'
-}
-```
-
-Codes you are most likely to see are `EACCES` and `EPERM` (no permission to create the log directory
-or write the log file), `ENOENT` (the directory disappeared and could not be recreated) and `EROFS`
-(read-only filesystem) - but any error the filesystem raises reaches the caller as-is.
-
-**An unhandled rejection terminates your process** under Node's default `--unhandled-rejections=throw`.
-A fire-and-forget `log.error('...', true)` pointed at an unwritable log directory exits the process
-with `Error: EACCES: permission denied, mkdir '...'`.
-
-The recommended consumer shape is a latch that trips on the first rejection:
-
-```js
-let fileLoggingDisabled = false;
-
-async function logError(message) {
-  // once file logging has failed, stay on the console
-  if (fileLoggingDisabled) return log.error(message);
-
-  try {
-    await log.error(message, true);
-  } catch (err) {
-    // the first rejection is terminal - disable, do not retry
-    fileLoggingDisabled = true;
-  }
-}
-```
-
-That latch is deliberately terminal for the lifetime of the process: nothing in it ever re-enables
-file logging. Records are degraded rather than lost, because the console line is still written on
-every call -- but a consumer using the file sink for audit or compliance should treat the first
-rejection as an **alertable** event, or fail closed, rather than degrade silently.
-
-#### Recovering After a Latch
-
-If file logging must come back without a restart, re-arm the latch on a **timer**, never on the next
-log call. Hold it closed for a fixed back-off window -- a minute or more, long enough that a
-permissions fix or a freed disk has a chance to land -- then let exactly one write through. If that
-write rejects, latch again and lengthen the window; if it succeeds, clear the latch. Anything faster
-is a consumer-side retry under another name.
-
-This also decides what your operators can see. `log-write-recovered` (see
-[structured stderr notices](#structured-stderr-notices)) is emitted **only** on a subsequent
-successful write, and a consumer that latches off permanently never issues one. Its entire stderr
-output for the episode is a single `log-write-failed` followed by silence, which is indistinguishable
-from a failure that self-healed -- so an alert-clear rule keyed on `log-write-recovered` will never
-fire for it. Either treat `log-write-failed` as latching on the operator side too, or use the timed
-re-arm above, which is what makes a recovery notice reachable at all.
-
-#### Self-Healing Retry
-
-A cached log directory can outlive the directory it describes - for example, something deletes
-`logs/` while your process is running. To cover that, a failure whose `err.code` is `ENOENT`,
-`EACCES`, `EPERM` or `EROFS` drops the cached directory entry and retries the write **exactly once**.
-Any other code -- `EISDIR`, `ENOTDIR`, `ENOSPC`, `EMFILE` and the rest -- does not itself trigger
-a retry. The decision is keyed on the *first* attempt's code, so a rejection carrying one of these
-can still arrive after a retry if conditions changed mid-call.
-
-A retry that succeeds emits no *failure* notice: the promise resolves normally and the write counts
-as a success, closing any failure episode already open for that directory with the usual
-`log-write-recovered`. A rejection carrying one of those four codes has therefore already spent its
-single retry; every other code was never retryable in the first place. The retry is per call and per
-`Log` instance -- independent instances retry independently.
-
-#### Structured stderr Notices
-
-Alongside the rejection, **Log** emits a machine-parseable notice to `stderr` so that operators have
-something to key on. The write-failure path must never re-enter the logger itself, so these notices
-bypass all formatting and configuration: they are emitted via `console.error` as one JSON object per
-line (JSONL), regardless of your color, prefix, suffix or path settings. Anything that wraps or
-patches `console.error` sees them too. Notices are informational; the promise rejection is the
-failure signal.
-
-| Field | Value |
-| :---: | :--- |
-| `ts` | ISO-8601 timestamp of the notice |
-| `surface` | Always `"stonyx-logs"` |
-| `sessionKey` | Always `null` |
-| `project` | Always `null` |
-| `severity` | `"error"` for a failure, `"warn"` for a recovery |
-| `event` | `"log-write-failed"` or `"log-write-recovered"` |
-| `payload` | Event-specific, see below |
-| `schemaVersion` | Always `1` |
-
-`log-write-failed` payload:
-
-| Field | Description |
-| :---: | :--- |
-| `targetLog` | Resolved path of the log file that could not be written |
-| `path` | Resolved log *directory*, with trailing separator - this is the dedupe key |
-| `syscall` | The failing syscall, e.g. `"mkdir"` or `"open"` |
-| `code` | The same `err.code` carried by the rejection |
-| `cached` | Whether the directory was already cached when the write started |
-| `suppressedCount` | Always `0` on a failure notice |
-
-`log-write-recovered` carries `targetLog`, `path` and `suppressedCount` only.
-
-**Dedupe:** notices are one per failure episode, keyed on the resolved directory and scoped to the
-`Log` instance -- the failure counters are instance state, so two instances writing to the same
-directory emit one notice each. The first failure for a directory emits `log-write-failed`; every
-subsequent failure for that same directory is silent. The next successful write to it emits a single
-`log-write-recovered` carrying `suppressedCount` - the number of notices that were suppressed, i.e.
-`N - 1` for an episode of `N` consecutive failures.
-Every failure still rejects its own promise; only the notices are deduped.
-
-Five consecutive failures followed by one success emit exactly these two records:
-
-```jsonl
-{"ts":"2026-08-29T23:08:50.343Z","surface":"stonyx-logs","sessionKey":null,"project":null,"severity":"error","event":"log-write-failed","payload":{"targetLog":"/private/tmp/my-app/logs/error.log","path":"/private/tmp/my-app/logs/","syscall":"mkdir","code":"EACCES","cached":false,"suppressedCount":0},"schemaVersion":1}
-{"ts":"2026-08-29T23:08:50.344Z","surface":"stonyx-logs","sessionKey":null,"project":null,"severity":"warn","event":"log-write-recovered","payload":{"targetLog":"/private/tmp/my-app/logs/error.log","path":"/private/tmp/my-app/logs/","suppressedCount":4},"schemaVersion":1}
-```
-
 ### Configuration
 
 When instantiating **Log**, you can pass an object to customize your settings. Below is the default configuration:
@@ -388,7 +213,7 @@ const log = new Log({
 
 | Option | Type | Default | Description |
 | :---: | :---: | :---: | :--- |
-| `logToFileByDefault` | **Boolean** | *false* | Option to change default setting for `logToFile` parameter of logging functions. When true, every log call except `debug()` becomes a rejectable file write -- see [handling write failures](#handling-write-failures). |
+| `logToFileByDefault` | **Boolean** | *false* | Option to change default setting for `logToFile` parameter of logging functions. |
 | `logTimestamp` | **Boolean** | *false* | Option to include timestamp in console logging. Timestamps are automatically included in file logs. |
 | `path` | **String** | *'logs/'* | Path in which to store log files. This setting is relative to your project's root directory. |
 | `prefix` | **String** | *''* | Prefix string to prepend all log messages for all log types with the exception of *debug*. |
