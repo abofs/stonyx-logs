@@ -313,6 +313,47 @@ module('[Integration] write path (#28)', function(hooks) {
       assert.deepEqual(await readLines(target), ['second'], 'the next write recovers and lands');
       assert.strictEqual(mkdirStub.callCount, 2, 'mkdir ran exactly once more after the failure');
     });
+
+    /*
+     * ENOTDIR is the other code the retry claims to cover: a path component replaced by
+     * a non-directory. Pin that it actually reaches the retry branch — the append fails,
+     * the cache entry is dropped and a recreate is attempted — rather than being
+     * rethrown immediately like a permission fault.
+     */
+    test('ENOTDIR on a warm cache enters the retry and surfaces the recreate failure', async function(assert) {
+      const log = createLog(`${uniquePath('notdir-retry')}sub/`);
+      const dir = log.options.path;
+      const parent = dir.replace(/\/sub\/$/, '');
+
+      // warm the cache with a genuinely successful write
+      await log.writeToFile('t', 'ok\n', false);
+      assert.strictEqual(log.directoryCache.has(dir), true, 'cache is warm before the fault');
+
+      // replace the cached directory with a regular file
+      await fsp.rm(dir, {
+        recursive: true,
+        force: true,
+      });
+      await fsp.writeFile(`${parent}/sub`, 'blocker');
+
+      const mkdirSpy = sinon.spy(fsp, 'mkdir');
+      const appendSpy = sinon.spy(fsp, 'appendFile');
+      let code: string | undefined;
+      let syscall: string | undefined;
+
+      try {
+        await log.writeToFile('t', 'blocked\n', false);
+      } catch (error) {
+        code = (error as NodeJS.ErrnoException).code;
+        syscall = (error as NodeJS.ErrnoException).syscall;
+      }
+
+      assert.strictEqual(code, 'ENOTDIR', 'the caller receives ENOTDIR');
+      assert.strictEqual(syscall, 'mkdir', 'the surfaced error comes from the attempted recreate');
+      assert.strictEqual(appendSpy.callCount, 1, 'the payload append was attempted exactly once');
+      assert.strictEqual(mkdirSpy.callCount, 1, 'the retry attempted exactly one recreate');
+      assert.strictEqual(log.directoryCache.has(dir), false, 'the stale cache entry was dropped');
+    });
   });
 
   // --- Error contract: rejection is the only failure signal ---
