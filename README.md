@@ -153,21 +153,27 @@ These methods can then be called in your application with [logging parameters](#
 
 Color settings are handled by determining whether your input is a color name or a hex value (prefixed with **#**). For example, passing `red` as a color setting will utilize `chalk.red`, while passing `#ff0000` would use `chalk.hex('#ff0000')` instead. A [list of available colors](https://github.com/chalk/chalk#colors) can be found in chalks' documentation.
 
-Additionally, these methods return a promise when `logToFile` is true, allowing you use them with `await` in an async method, or append `then(), catch(), or finally()` for more advanced callback usage.
+Additionally, these methods return a promise when `logToFile` is true. That promise rejecting is the only signal that a write failed, so you must either `await` the call or attach a `.catch()` — see [File Write Failures](#file-write-failures). `then()` and `finally()` are also available.
 
 ```js
 async method() {
-  await log.error('error message', true);
+  try {
+    await log.error('error message', true);
 
-  // do something after logs/error.log (default) is created
+    // do something after logs/error.log (default) is created
+  } catch (err) {
+    // the write failed; the rejection is the only notice you get
+    process.stderr.write(`log write failed: ${err.code}\n`);
+  }
 }
 ```
 
 #### File Write Failures
 
-When `logToFile` is true, **the returned promise rejecting is the only failure signal.** Nothing is
-printed and no fallback log is written when the log directory or file cannot be written: the
-underlying `fs` error is propagated to the caller with its `code` intact (`EACCES`, `EPERM`,
+When `logToFile` is true, **the returned promise rejecting is the only failure signal.** The log
+line itself is still written to the console as usual, but **no error notice is printed** and no
+fallback log is written when the log directory or file cannot be written: the underlying `fs` error
+is propagated to the caller with its `code` intact (`ENOENT`, `ENOTDIR`, `EACCES`, `EPERM`,
 `EROFS`, ...).
 
 A fire-and-forget call therefore produces an **unhandled promise rejection** on a failed write.
@@ -181,8 +187,15 @@ log.error('error message', true);
 log.error('error message', true).catch(err => process.stderr.write(`log write failed: ${err.code}\n`));
 ```
 
-A write that fails because the log directory was removed at runtime is retried once against a
-freshly created directory before the rejection surfaces.
+A failed write is retried exactly once, and only for the two codes that recreating the log directory
+can repair: `ENOENT` (the directory was removed at runtime) and `ENOTDIR` (a path component was
+replaced by a non-directory). The directory cache entry is dropped, the directory is recreated, and
+the write is reattempted once before the rejection surfaces. If the recreate itself fails, that
+error is what surfaces.
+
+Every other code — including `EACCES`, `EPERM` and `EROFS` — rejects immediately with no retry,
+because `mkdir` on an existing directory is a successful no-op: it cannot change a permission bit or
+a read-only mount, so a retry could only ever repeat the same failure at twice the syscall cost.
 
 ### The Debug Method
 
