@@ -269,6 +269,50 @@ module('[Integration] write path (#28)', function(hooks) {
       assert.deepEqual(lines, ['after'], 'the post-removal line landed in a recreated directory');
       assert.strictEqual(mkdirSpy.callCount, 2, 'mkdir called exactly twice across the test');
     });
+
+    /*
+     * validateFileAndDirectory() is awaited OUTSIDE the try in writeToFile(), so a
+     * rejected promise left in the cache is returned by every later call and propagates
+     * straight past the retry logic. Without the pending.catch() eviction a single
+     * transient mkdir failure permanently bricks every future write to that directory
+     * for the life of the Log instance.
+     */
+    test('a transient mkdir failure is not cached: the next write recovers', async function(assert) {
+      const log = createLog(uniquePath('mkdir-poison'));
+      const target = `${log.options.path}t.log`;
+      const realMkdir = fsp.mkdir.bind(fsp);
+      let failedOnce = false;
+
+      const mkdirStub = sinon.stub(fsp, 'mkdir').callsFake(((...args: unknown[]) => {
+        if (!failedOnce) {
+          failedOnce = true;
+
+          return Promise.reject(Object.assign(new Error('transient'), { code: 'EAGAIN' }));
+        }
+
+        return (realMkdir as unknown as (...a: unknown[]) => Promise<unknown>)(...args);
+      }) as never);
+
+      let firstCode: string | undefined;
+
+      try {
+        await log.writeToFile('t', 'first\n', false);
+      } catch (error) {
+        firstCode = (error as NodeJS.ErrnoException).code;
+      }
+
+      assert.strictEqual(firstCode, 'EAGAIN', 'the transient mkdir failure reaches the caller');
+      assert.strictEqual(
+        log.directoryCache.has(log.options.path),
+        false,
+        'the rejected promise was evicted rather than cached',
+      );
+
+      await log.writeToFile('t', 'second\n', false);
+
+      assert.deepEqual(await readLines(target), ['second'], 'the next write recovers and lands');
+      assert.strictEqual(mkdirStub.callCount, 2, 'mkdir ran exactly once more after the failure');
+    });
   });
 
   // --- Error contract: rejection is the only failure signal ---
