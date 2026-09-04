@@ -163,6 +163,27 @@ async method() {
 }
 ```
 
+#### File Write Failures
+
+When `logToFile` is true, **the returned promise rejecting is the only failure signal.** Nothing is
+printed and no fallback log is written when the log directory or file cannot be written: the
+underlying `fs` error is propagated to the caller with its `code` intact (`EACCES`, `EPERM`,
+`EROFS`, ...).
+
+A fire-and-forget call therefore produces an **unhandled promise rejection** on a failed write.
+Always `await` the call (or attach a `.catch()`) anywhere file logging is enabled:
+
+```js
+// unhandled rejection if the log directory is not writable
+log.error('error message', true);
+
+// handled
+log.error('error message', true).catch(err => process.stderr.write(`log write failed: ${err.code}\n`));
+```
+
+A write that fails because the log directory was removed at runtime is retried once against a
+freshly created directory before the rejection surfaces.
+
 ### The Debug Method
 
 **Log** allows for the `log.debug()` method to be overridden by a color setting. However, by default we do not define a color for debug and debug is handled differently. For console logging, all **debug** does is output the following:
