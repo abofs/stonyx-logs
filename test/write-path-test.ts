@@ -384,6 +384,9 @@ module('[Integration] write path (#28)', function(hooks) {
      * A permission fault is not repairable by mkdir(recursive) — it is a successful
      * no-op on an existing directory. Retrying it doubles the syscalls on every write
      * forever and defeats the one-mkdir-per-directory invariant. Pin the counts.
+     *
+     * Requires a non-root user: root ignores the mode bits and the write would succeed.
+     * CI runs on ubuntu-latest with no container, so it runs as the `runner` user.
      */
     test('a permission fault is not retried and does not defeat the mkdir-once invariant', async function(assert) {
       const log = createLog(uniquePath('eacces-noretry'));
