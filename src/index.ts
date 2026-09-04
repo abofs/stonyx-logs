@@ -34,10 +34,18 @@ const defaultOptions: LogOptions = {
 const optionKeys = Object.keys(defaultOptions);
 
 /*
- * Write failures where the cached log directory may have been removed or made
- * unavailable at runtime. These invalidate the directory cache and are retried once.
+ * Write failures that a recursive mkdir of the log directory can actually repair:
+ * ENOENT (the cached directory was removed at runtime) and ENOTDIR (a path component
+ * was replaced by a non-directory). These invalidate the directory cache and are
+ * retried once.
+ *
+ * Permission and mount faults (EACCES, EPERM, EROFS) are deliberately excluded: the
+ * retry's only remediation is mkdir(recursive), which is a successful no-op on an
+ * existing directory and can change neither a mode nor a mount flag. Retrying them
+ * doubled the syscalls on a permanently failing write and defeated the
+ * one-mkdir-per-directory invariant this cache exists to establish.
  */
-const recoverableWriteCodes = new Set(['ENOENT', 'EACCES', 'EPERM', 'EROFS']);
+const recoverableWriteCodes = new Set(['ENOENT', 'ENOTDIR']);
 
 export default class Log {
   options: LogOptions;
@@ -181,7 +189,7 @@ export default class Log {
     } catch (error) {
       const { code } = error as NodeJS.ErrnoException;
 
-      if (!code || !recoverableWriteCodes.has(code)) throw error;
+      if (!recoverableWriteCodes.has(code as string)) throw error;
 
       /*
        * The cached directory may have been removed underneath a warm cache. Invalidate

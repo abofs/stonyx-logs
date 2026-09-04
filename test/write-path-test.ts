@@ -294,5 +294,46 @@ module('[Integration] write path (#28)', function(hooks) {
       assert.strictEqual(code, 'EISDIR', 'rejection preserves the underlying fs error code');
       assert.strictEqual(mkdirSpy.callCount, 1, 'a non-recoverable failure is not retried');
     });
+
+    /*
+     * A permission fault is not repairable by mkdir(recursive) — it is a successful
+     * no-op on an existing directory. Retrying it doubles the syscalls on every write
+     * forever and defeats the one-mkdir-per-directory invariant. Pin the counts.
+     */
+    test('a permission fault is not retried and does not defeat the mkdir-once invariant', async function(assert) {
+      const log = createLog(uniquePath('eacces-noretry'));
+
+      // create the directory, then drop write permission so each payload write fails EACCES
+      await fsp.mkdir(log.options.path, { recursive: true });
+      await fsp.chmod(log.options.path, 0o500);
+
+      const mkdirSpy = sinon.spy(fsp, 'mkdir');
+      const appendSpy = sinon.spy(fsp, 'appendFile');
+      const codes: string[] = [];
+
+      for (let i = 0; i < 5; i += 1) {
+        try {
+          await log.writeToFile('t', `line-${i}\n`, false);
+        } catch (error) {
+          codes.push((error as NodeJS.ErrnoException).code as string);
+        }
+      }
+
+      // restore permissions so the afterEach cleanup can remove the tree
+      await fsp.chmod(log.options.path, 0o755);
+
+      assert.deepEqual(
+        codes,
+        ['EACCES', 'EACCES', 'EACCES', 'EACCES', 'EACCES'],
+        'every write rejects with the underlying EACCES',
+      );
+      assert.strictEqual(mkdirSpy.callCount, 1, 'mkdir runs once for the cold cache and is never retried');
+      assert.strictEqual(appendSpy.callCount, 5, 'each failing write attempts exactly one append');
+      assert.strictEqual(
+        log.directoryCache.has(log.options.path),
+        true,
+        'a permission fault leaves the directory cache intact',
+      );
+    });
   });
 });
