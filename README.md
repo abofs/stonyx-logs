@@ -197,6 +197,21 @@ Every other code — including `EACCES`, `EPERM` and `EROFS` — rejects immedia
 because `mkdir` on an existing directory is a successful no-op: it cannot change a permission bit or
 a read-only mount, so a retry could only ever repeat the same failure at twice the syscall cost.
 
+##### The directory cache
+
+To keep the write path free of repeated `mkdir` calls, each `Log` instance exposes a
+`directoryCache` field: a `Map` keyed on the resolved directory (not on the target filename), whose
+values are the in-flight or settled `mkdir` promises. It is **instance-scoped, not module-scoped** —
+two `Log` instances pointing at the same directory each call `mkdir` once. Entries are **never
+evicted on success**, so a directory is created at most once per instance for the process lifetime;
+entries are dropped only when the `mkdir` rejects, or when a write fails with a retryable code and
+the directory is recreated.
+
+It is public only because the class carries an index signature, and it is not part of the supported
+API: treat it as read-only, since mutating it corrupts the write path. Note also that the name is
+reserved — a log type called `directoryCache` is silently skipped rather than overwriting the cache,
+so no convenience method is generated for it.
+
 ### The Debug Method
 
 **Log** allows for the `log.debug()` method to be overridden by a color setting. However, by default we do not define a color for debug and debug is handled differently. For console logging, all **debug** does is output the following:
