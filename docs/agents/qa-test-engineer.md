@@ -29,7 +29,7 @@
 - Dynamic convenience methods generated at runtime from `systemLogs` and `additionalLogs` config (e.g., `log.info()`, `log.warn()`, `log.error()`)
 - `defineType()` allows post-construction registration of new log types with custom chalk functions or color strings
 - Per-type option overrides via `typeOptions` map (prefix, suffix, path, filename can differ per log type)
-- File logging is async (`fs.promises`) with automatic directory creation via `mkdirSync`
+- File logging is async (`fs.promises`) with automatic directory creation via `await fsp.mkdir(path, { recursive: true })`, deduped by an instance-level promise cache; no synchronous fs call remains on the write path
 - Dynamic filename resolution supports `{date}`, `{type}`, `{pid}`, `{hostname}` template variables with path-traversal sanitization
 - `debug()` is a hardcoded method that uses `console.dir` instead of chalk coloring, with `JSON.stringify` for file output
 - Color resolution: string starting with `#` uses `chalk.hex()`, plain strings map to named chalk methods, functions are passed through with validation

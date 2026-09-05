@@ -1,4 +1,4 @@
-import { mkdirSync, promises as fsp } from 'fs';
+import { promises as fsp } from 'fs';
 import { fileURLToPath } from 'url';
 import { hostname } from 'os';
 import projectPath from 'path';
@@ -33,10 +33,31 @@ const defaultOptions: LogOptions = {
 // used to sanitize defineType() options input
 const optionKeys = Object.keys(defaultOptions);
 
+/*
+ * Write failures that a recursive mkdir of the log directory can actually repair:
+ * ENOENT (the cached directory was removed at runtime) and ENOTDIR (a path component
+ * was replaced by a non-directory). These invalidate the directory cache and are
+ * retried once.
+ *
+ * Permission and mount faults (EACCES, EPERM, EROFS) are deliberately excluded: the
+ * retry's only remediation is mkdir(recursive), which is a successful no-op on an
+ * existing directory and can change neither a mode nor a mount flag. Retrying them
+ * doubled the syscalls on a permanently failing write and defeated the
+ * one-mkdir-per-directory invariant this cache exists to establish.
+ */
+const recoverableWriteCodes = new Set(['ENOENT', 'ENOTDIR']);
+
 export default class Log {
   options: LogOptions;
   color: Color;
   typeOptions: Record<string, Partial<LogOptions>> = {};
+
+  /*
+   * Instance-level cache of directory creation, keyed on the resolved directory path.
+   * resolveFilename() strips directory separators, so a filename template can never
+   * introduce a new directory and date rollover cannot invalidate an entry.
+   */
+  directoryCache: Map<string, Promise<void>> = new Map();
 
   // Dynamic convenience methods added at runtime
   [key: string]: unknown;
@@ -159,11 +180,27 @@ export default class Log {
     const filenameTemplate = this.getOptionForType(type, 'filename') as string;
     const resolvedName = this.resolveFilename(filenameTemplate, type);
     const targetLog = `${path}${resolvedName}`;
-    await this.validateFileAndDirectory(path, targetLog);
-
     const fileAction = overwrite ? fsp.writeFile : fsp.appendFile;
 
-    await fileAction(targetLog, content);
+    await this.validateFileAndDirectory(path, targetLog);
+
+    try {
+      await fileAction(targetLog, content);
+    } catch (error) {
+      const { code } = error as NodeJS.ErrnoException;
+
+      if (!recoverableWriteCodes.has(code as string)) throw error;
+
+      /*
+       * The cached directory may have been removed underneath a warm cache. Invalidate
+       * the entry and retry exactly once so a cache hit can never become a permanent
+       * silent write failure. The rejection is the caller's only failure signal.
+       */
+      this.directoryCache.delete(path);
+
+      await this.validateFileAndDirectory(path, targetLog);
+      await fileAction(targetLog, content);
+    }
   }
 
   // resolves template variables in a filename string
@@ -191,18 +228,30 @@ export default class Log {
     return resolved.replace(/\.\./g, '').replace(/[/\\]/g, '');
   }
 
-  // attempts to create file and/or directory if they don't already exist
+  /*
+   * Ensures the log directory exists, deduping concurrent and repeat calls onto a single
+   * mkdir per directory. No file bootstrap happens here: both write paths already create
+   * the file (appendFile opens 'a', writeFile opens 'w'), so a bootstrap write's only
+   * reachable effect was truncating a concurrent caller's content.
+   *
+   * targetLog is unused but retained for signature compatibility.
+   */
   async validateFileAndDirectory(path: string, targetLog: string): Promise<void> {
-    const errorMethod = this.error;
+    const cached = this.directoryCache.get(path);
 
-    mkdirSync(path, { recursive: true });
+    if (cached) return cached;
 
-    await fsp.access(targetLog).catch(() => {
-      fsp.writeFile(targetLog, '').catch(() => {
-        errorMethod(`Failed to create log file: ${targetLog}.`
-          + '\n Verify that the application runner has write permissions');
-      });
+    // cache the promise before awaiting so concurrent writers dedupe and none run early
+    const pending = fsp.mkdir(path, { recursive: true }).then(() => undefined);
+
+    this.directoryCache.set(path, pending);
+
+    // never cache a poisoned promise: drop the entry so the next write retries
+    pending.catch(() => {
+      if (this.directoryCache.get(path) === pending) this.directoryCache.delete(path);
     });
+
+    return pending;
   }
 
   // method to conditionally sanitize user configuration input
