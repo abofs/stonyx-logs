@@ -5,6 +5,7 @@ Simplified logging for Node.js applications. Built on [chalk](https://www.npmjs.
 ## Documentation
 
 - [README](../README.md) -- usage examples, API reference, and configuration options
+- [Architecture](architecture.md) -- classes, color resolution, path resolution and the write path
 - [Release instructions](release.md)
 
 ## Verification
