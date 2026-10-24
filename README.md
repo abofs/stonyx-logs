@@ -48,6 +48,18 @@ This project is not directly associated with chalk other than chalk being a core
 npm install @stonyx/logs
 ```
 
+## Entry points
+
+| Import | Export |
+| :--- | :--- |
+| `@stonyx/logs` | `Log` (default): the logger |
+| `@stonyx/logs/color` | `Color` (default): the chalk color resolver `Log` uses internally |
+
+```js
+import Log from '@stonyx/logs';
+import Color from '@stonyx/logs/color';
+```
+
 ## Usage
 
 ```js
@@ -218,7 +230,7 @@ so no convenience method is generated for it.
 
 ```js
 // For logging to console:
-console.dir(content);
+console.dir(content, { depth: 6 });
 
 // For writing to file:
 JSON.stringify(content, null, 2);
